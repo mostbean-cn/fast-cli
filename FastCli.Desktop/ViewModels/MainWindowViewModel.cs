@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
+using FastCli.Application.Utilities;
 using FastCli.Desktop.Mvvm;
 using FastCli.Desktop.Services;
 using FastCli.Domain.Enums;
@@ -17,6 +18,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private CommandSession? _runningSession;
     private bool _suppressPreviewRefresh;
     private bool _suppressSelectionPersistence;
+    private bool _suppressHistoryRestore;
 
     private CommandGroup? _selectedGroup;
     private CommandProfile? _selectedCommand;
@@ -33,6 +35,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private string _actualExecutionCommand = string.Empty;
     private string _statusMessage = "准备就绪";
     private string _currentLogText = string.Empty;
+    private string _currentLogTranscript = string.Empty;
     private bool _isExecutionRunning;
 
     public MainWindowViewModel(IFastCliAppService appService, SelectionStateStore selectionStateStore)
@@ -48,6 +51,8 @@ public sealed class MainWindowViewModel : ObservableObject
     public ObservableCollection<EnvironmentVariableItem> EnvironmentVariables { get; } = new();
 
     public ObservableCollection<ExecutionRecord> ExecutionHistory { get; } = new();
+
+    public ObservableCollection<TerminalLogEntry> TerminalLogEntries { get; } = new();
 
     public IReadOnlyList<OptionItem<ShellType>> AvailableShellTypes { get; } =
     [
@@ -98,9 +103,9 @@ public sealed class MainWindowViewModel : ObservableObject
         get => _selectedHistoryRecord;
         set
         {
-            if (SetProperty(ref _selectedHistoryRecord, value) && !_isExecutionRunning)
+            if (SetProperty(ref _selectedHistoryRecord, value) && !_isExecutionRunning && !_suppressHistoryRestore)
             {
-                CurrentLogText = value?.OutputText ?? string.Empty;
+                SetTerminalTranscript(value?.OutputText);
             }
         }
     }
@@ -384,7 +389,8 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        CurrentLogText = string.Empty;
+        _suppressHistoryRestore = true;
+        SetTerminalTranscript(string.Empty);
         SelectedHistoryRecord = null;
 
         try
@@ -406,6 +412,7 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 StatusMessage = result.Record.Summary;
                 AppendSystemLogLine(result.Record.Summary, isError: result.Record.Status == ExecutionStatus.Failure);
+                _suppressHistoryRestore = false;
                 await LoadExecutionHistoryAsync(result.Profile.Id);
                 return;
             }
@@ -419,6 +426,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            _suppressHistoryRestore = false;
             StatusMessage = ex.Message;
             AppendSystemLogLine($"执行失败：{ex.Message}", isError: true);
         }
@@ -494,10 +502,18 @@ public sealed class MainWindowViewModel : ObservableObject
         RefreshPreviewSafe();
     }
 
-    public void ClearCurrentLog()
+    public async Task ClearCurrentLogAsync()
     {
-        CurrentLogText = string.Empty;
-        SelectedHistoryRecord = null;
+        var recordToClear = SelectedHistoryRecord;
+        SetTerminalTranscript(string.Empty);
+
+        if (IsExecutionRunning || recordToClear is null)
+        {
+            return;
+        }
+
+        recordToClear.OutputText = string.Empty;
+        await _appService.UpdateExecutionRecordOutputAsync(recordToClear.Id, string.Empty);
     }
 
     private async Task ReloadWorkspaceAsync(Guid? preferredGroupId = null, Guid? preferredCommandId = null)
@@ -515,7 +531,7 @@ public sealed class MainWindowViewModel : ObservableObject
             Commands.Clear();
             SelectedCommand = null;
             ReplaceCollection(ExecutionHistory, snapshot.RecentExecutionRecords);
-            CurrentLogText = string.Empty;
+            SetTerminalTranscript(string.Empty);
             _suppressSelectionPersistence = false;
             PersistSelectionStateIfNeeded();
             return;
@@ -605,8 +621,8 @@ public sealed class MainWindowViewModel : ObservableObject
         if (!commandId.HasValue)
         {
             ExecutionHistory.Clear();
-            CurrentLogText = string.Empty;
             SelectedHistoryRecord = null;
+            SetTerminalTranscript(string.Empty);
             return;
         }
 
@@ -615,10 +631,10 @@ public sealed class MainWindowViewModel : ObservableObject
             var history = await _appService.GetRecentExecutionRecordsAsync(commandId, 20);
             ReplaceCollection(ExecutionHistory, history);
 
-            if (!IsExecutionRunning)
+            if (!IsExecutionRunning && !_suppressHistoryRestore)
             {
                 SelectedHistoryRecord = ExecutionHistory.FirstOrDefault();
-                CurrentLogText = SelectedHistoryRecord?.OutputText ?? string.Empty;
+                SetTerminalTranscript(SelectedHistoryRecord?.OutputText);
             }
         }
         catch (Exception ex)
@@ -690,11 +706,7 @@ public sealed class MainWindowViewModel : ObservableObject
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 StatusMessage = result.Summary;
-
-                if (result.Status != ExecutionStatus.Success || string.IsNullOrWhiteSpace(CurrentLogText))
-                {
-                    AppendSystemLogLine(result.Summary, isError: result.Status == ExecutionStatus.Failure);
-                }
+                AppendSystemLogLine(result.Summary, isError: result.Status == ExecutionStatus.Failure);
             });
         }
         catch (Exception ex)
@@ -711,6 +723,7 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 _runningSession = null;
                 IsExecutionRunning = false;
+                _suppressHistoryRestore = false;
             });
 
             var loadHistoryOperation = System.Windows.Application.Current.Dispatcher.InvokeAsync(() => LoadExecutionHistoryAsync(commandId));
@@ -720,10 +733,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void AppendLogLine(CommandOutputLine line)
     {
-        var prefix = line.IsError ? "[ERR]" : "[OUT]";
-        CurrentLogText = string.IsNullOrEmpty(CurrentLogText)
-            ? $"{prefix} {line.Text}"
-            : $"{CurrentLogText}{Environment.NewLine}{prefix} {line.Text}";
+        AppendTerminalLog(line.Text, line.IsError ? TerminalLogKind.Error : TerminalLogKind.Output);
     }
 
     private void AppendSystemLogLine(string? text, bool isError)
@@ -733,10 +743,46 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        var prefix = isError ? "[ERR]" : "[SYS]";
+        AppendTerminalLog(
+            $"{text} [{DateTime.Now:HH:mm:ss}]",
+            isError ? TerminalLogKind.Error : TerminalLogKind.System);
+    }
+
+    private void AppendTerminalLog(string text, TerminalLogKind kind)
+    {
+        _currentLogTranscript = TerminalTranscriptCodec.AppendLine(_currentLogTranscript, kind, text);
         CurrentLogText = string.IsNullOrEmpty(CurrentLogText)
-            ? $"{prefix} {text}"
-            : $"{CurrentLogText}{Environment.NewLine}{prefix} {text}";
+            ? text
+            : $"{CurrentLogText}{Environment.NewLine}{text}";
+
+        TerminalLogEntries.Add(CreateTerminalLogEntry(text, kind));
+    }
+
+    private void SetTerminalTranscript(string? transcript)
+    {
+        _currentLogTranscript = transcript ?? string.Empty;
+        CurrentLogText = TerminalTranscriptCodec.ToDisplayText(_currentLogTranscript);
+        ReloadTerminalLogEntriesFromTranscript(_currentLogTranscript);
+    }
+
+    private void ReloadTerminalLogEntriesFromTranscript(string? transcript)
+    {
+        TerminalLogEntries.Clear();
+
+        foreach (var line in TerminalTranscriptCodec.DecodeTranscript(transcript))
+        {
+            TerminalLogEntries.Add(CreateTerminalLogEntry(line.Text, line.Kind));
+        }
+    }
+
+    private static TerminalLogEntry CreateTerminalLogEntry(string text, TerminalLogKind kind)
+    {
+        return new TerminalLogEntry
+        {
+            Text = text,
+            IsSystem = kind == TerminalLogKind.System,
+            IsError = kind == TerminalLogKind.Error
+        };
     }
 
     private async Task ExecuteWithStatusAsync(Func<Task> action)

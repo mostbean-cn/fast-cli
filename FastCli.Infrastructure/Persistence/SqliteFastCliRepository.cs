@@ -428,6 +428,20 @@ public sealed class SqliteFastCliRepository : IFastCliRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task UpdateExecutionRecordOutputAsync(Guid executionRecordId, string outputText, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE execution_records
+            SET output_text = $outputText
+            WHERE id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", executionRecordId.ToString());
+        command.Parameters.AddWithValue("$outputText", outputText);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     private async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
         await _databaseInitializer.EnsureInitializedAsync(cancellationToken);

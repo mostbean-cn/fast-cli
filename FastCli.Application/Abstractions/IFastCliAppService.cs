@@ -29,6 +29,8 @@ public interface IFastCliAppService
 
     Task<IReadOnlyList<ExecutionRecord>> GetRecentExecutionRecordsAsync(Guid? commandId, int take, CancellationToken cancellationToken = default);
 
+    Task UpdateExecutionRecordOutputAsync(Guid executionRecordId, string outputText, CancellationToken cancellationToken = default);
+
     Task<CommandStartResult> StartCommandAsync(Guid commandId, Action<CommandOutputLine> onOutput, CancellationToken cancellationToken = default);
 
     Task StopCommandAsync(CommandSession session, CancellationToken cancellationToken = default);

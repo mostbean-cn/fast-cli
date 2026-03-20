@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Collections.Specialized;
 using FastCli.Desktop.ViewModels;
 using FastCli.Desktop.Views;
 using FastCli.Domain.Models;
@@ -18,6 +19,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         ViewModel = viewModel;
         DataContext = viewModel;
+        ViewModel.TerminalLogEntries.CollectionChanged += TerminalLogEntries_CollectionChanged;
     }
 
     public MainWindowViewModel ViewModel { get; }
@@ -143,9 +145,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ClearLogButton_Click(object sender, RoutedEventArgs e)
+    private async void ClearLogButton_Click(object sender, RoutedEventArgs e)
     {
-        ViewModel.ClearCurrentLog();
+        await ViewModel.ClearCurrentLogAsync();
     }
 
     private async void CommandListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -330,5 +332,10 @@ public partial class MainWindow : Window
     private void ToggleThemeButton_Click(object sender, RoutedEventArgs e)
     {
         ViewModel.ToggleTheme();
+    }
+
+    private void TerminalLogEntries_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        Dispatcher.BeginInvoke(() => TerminalLogScrollViewer.ScrollToEnd());
     }
 }

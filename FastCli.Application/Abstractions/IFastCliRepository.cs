@@ -28,5 +28,7 @@ public interface IFastCliRepository
 
     Task<IReadOnlyList<ExecutionRecord>> GetExecutionRecordsAsync(Guid? commandId, int take, CancellationToken cancellationToken = default);
 
+    Task UpdateExecutionRecordOutputAsync(Guid executionRecordId, string outputText, CancellationToken cancellationToken = default);
+
     Task SaveExecutionRecordAsync(ExecutionRecord record, CancellationToken cancellationToken = default);
 }

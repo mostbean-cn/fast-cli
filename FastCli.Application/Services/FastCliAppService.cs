@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Text;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
+using FastCli.Application.Utilities;
 using FastCli.Domain.Enums;
 using FastCli.Domain.Models;
 
@@ -180,6 +181,11 @@ public sealed class FastCliAppService : IFastCliAppService
         return _repository.GetExecutionRecordsAsync(commandId, take, cancellationToken);
     }
 
+    public Task UpdateExecutionRecordOutputAsync(Guid executionRecordId, string outputText, CancellationToken cancellationToken = default)
+    {
+        return _repository.UpdateExecutionRecordOutputAsync(executionRecordId, outputText, cancellationToken);
+    }
+
     public async Task<CommandStartResult> StartCommandAsync(
         Guid commandId,
         Action<CommandOutputLine> onOutput,
@@ -205,7 +211,10 @@ public sealed class FastCliAppService : IFastCliAppService
                 EndedAt = DateTimeOffset.Now,
                 ExitCode = completion.ExitCode,
                 Summary = completion.Summary,
-                OutputText = string.Empty
+                OutputText = TerminalTranscriptCodec.AppendLine(
+                    transcript: null,
+                    kind: completion.Status == ExecutionStatus.Failure ? TerminalLogKind.Error : TerminalLogKind.System,
+                    text: FormatSystemLogText(completion.Summary))
             };
 
             await _repository.SaveExecutionRecordAsync(record, cancellationToken);
@@ -229,16 +238,19 @@ public sealed class FastCliAppService : IFastCliAppService
             OutputText = string.Empty
         };
 
+        var logBuilder = new StringBuilder();
+        AppendTranscriptLine(logBuilder, TerminalLogKind.System, FormatSystemLogText($"开始执行：{profile.Name}"));
+        runningRecord.OutputText = logBuilder.ToString();
+
         await _repository.SaveExecutionRecordAsync(runningRecord, cancellationToken);
 
-        var logBuilder = new StringBuilder();
         var logLock = new object();
 
         void ForwardOutput(CommandOutputLine line)
         {
             lock (logLock)
             {
-                logBuilder.AppendLine(line.Text);
+                AppendTranscriptLine(logBuilder, line.IsError ? TerminalLogKind.Error : TerminalLogKind.Output, line.Text);
             }
 
             onOutput(line);
@@ -289,6 +301,10 @@ public sealed class FastCliAppService : IFastCliAppService
 
             lock (logLock)
             {
+                AppendTranscriptLine(
+                    logBuilder,
+                    completion.Status == ExecutionStatus.Failure ? TerminalLogKind.Error : TerminalLogKind.System,
+                    FormatSystemLogText(completion.Summary));
                 record.OutputText = logBuilder.ToString();
             }
         }
@@ -305,12 +321,31 @@ public sealed class FastCliAppService : IFastCliAppService
 
             lock (logLock)
             {
+                AppendTranscriptLine(
+                    logBuilder,
+                    TerminalLogKind.Error,
+                    FormatSystemLogText(record.Summary));
                 record.OutputText = logBuilder.ToString();
             }
         }
 
         await _repository.SaveExecutionRecordAsync(record).ConfigureAwait(false);
         return completion;
+    }
+
+    private static string FormatSystemLogText(string text)
+    {
+        return $"{text} [{DateTime.Now:HH:mm:ss}]";
+    }
+
+    private static void AppendTranscriptLine(StringBuilder builder, TerminalLogKind kind, string text)
+    {
+        if (builder.Length > 0)
+        {
+            builder.AppendLine();
+        }
+
+        builder.Append(TerminalTranscriptCodec.Encode(kind, text));
     }
 
     private static CommandExecutionRequest ToExecutionRequest(CommandProfile profile)

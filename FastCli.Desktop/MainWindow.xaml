@@ -2,12 +2,15 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:mvvm="clr-namespace:FastCli.Desktop.Mvvm"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         Title="FastCli - 命令工作台" Width="1200" Height="800"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="{DynamicResource PrimaryTextBrush}"
         Loaded="Window_Loaded">
     <Window.Resources>
         <mvvm:ShellTypeDisplayConverter x:Key="ShellTypeDisplayConverter" />
+        <sys:Double x:Key="{x:Static SystemParameters.VerticalScrollBarWidthKey}">8</sys:Double>
+        <sys:Double x:Key="{x:Static SystemParameters.HorizontalScrollBarHeightKey}">8</sys:Double>
         <!-- Styles using DynamicResource -->
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
@@ -509,8 +512,38 @@
                             </StackPanel>
                         </DockPanel>
                     </Border>
-                    
-                    <TextBox Grid.Row="1" FontFamily="Consolas" FontSize="13" Background="Transparent" Foreground="{DynamicResource TerminalTextBrush}" BorderThickness="0" IsReadOnly="True" Text="{Binding CurrentLogText, Mode=OneWay}" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="16" />
+
+                    <ScrollViewer x:Name="TerminalLogScrollViewer"
+                                  Grid.Row="1"
+                                  Padding="16"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding TerminalLogEntries}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock FontFamily="Consolas"
+                                               FontSize="13"
+                                               Text="{Binding Text}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,4">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource TerminalTextBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSystem}" Value="True">
+                                                        <Setter Property="Foreground" Value="#9FE8A8" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsError}" Value="True">
+                                                        <Setter Property="Foreground" Value="#FF8A8A" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </Grid>
             </Grid>
         </Grid>
