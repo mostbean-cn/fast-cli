@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Collections.Specialized;
+using FastCli.Desktop.Services;
 using FastCli.Desktop.ViewModels;
 using FastCli.Desktop.Views;
 using FastCli.Domain.Models;
@@ -13,11 +14,13 @@ public partial class MainWindow : Window
 {
     private Point _groupDragStartPoint;
     private Point _commandDragStartPoint;
+    private readonly GitHubReleaseUpdateService _updateService;
 
-    public MainWindow(MainWindowViewModel viewModel)
+    public MainWindow(MainWindowViewModel viewModel, GitHubReleaseUpdateService updateService)
     {
         InitializeComponent();
         ViewModel = viewModel;
+        _updateService = updateService;
         DataContext = viewModel;
         ViewModel.TerminalLogEntries.CollectionChanged += TerminalLogEntries_CollectionChanged;
     }
@@ -332,6 +335,12 @@ public partial class MainWindow : Window
     private void ToggleThemeButton_Click(object sender, RoutedEventArgs e)
     {
         ViewModel.ToggleTheme();
+    }
+
+    private void OpenSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var settingsViewModel = new SettingsWindowViewModel(_updateService);
+        SettingsWindow.ShowSettingsDialog(this, settingsViewModel);
     }
 
     private void TerminalLogEntries_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)

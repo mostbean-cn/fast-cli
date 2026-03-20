@@ -1,0 +1,100 @@
+<Window x:Class="FastCli.Desktop.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="设置"
+        Width="520"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource PrimaryTextBrush}"
+        Loaded="Window_Loaded">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="设置" FontSize="22" FontWeight="Bold" />
+            <TextBlock Margin="0,6,0,0"
+                       Foreground="{DynamicResource SecondaryTextBrush}"
+                       Text="主题、版本和更新相关配置都集中在这里。" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Margin="0,18,0,0"
+                Padding="16"
+                Background="{DynamicResource PanelBackgroundBrush}"
+                BorderBrush="{DynamicResource PanelBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+            <StackPanel>
+                <TextBlock Text="外观" FontSize="16" FontWeight="Bold" />
+                <CheckBox Margin="0,12,0,0"
+                          Content="启用深色主题"
+                          IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="2"
+                Margin="0,12,0,0"
+                Padding="16"
+                Background="{DynamicResource PanelBackgroundBrush}"
+                BorderBrush="{DynamicResource PanelBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+            <StackPanel>
+                <TextBlock Text="版本与更新" FontSize="16" FontWeight="Bold" />
+                <TextBlock Margin="0,12,0,0" Text="{Binding CurrentVersion}" />
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource SecondaryTextBrush}"
+                           Text="{Binding SkippedVersionText}" />
+                <WrapPanel Margin="0,14,0,0">
+                    <Button Content="检查更新"
+                            Width="96"
+                            Margin="0,0,8,8"
+                            Click="CheckUpdateButton_Click" />
+                    <Button Content="清除忽略"
+                            Width="96"
+                            Margin="0,0,8,8"
+                            Click="ClearSkippedVersionButton_Click" />
+                    <Button Content="打开 Releases"
+                            Width="110"
+                            Margin="0,0,0,8"
+                            Click="OpenReleasesButton_Click" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="3"
+                Margin="0,12,0,0"
+                Padding="16"
+                Background="{DynamicResource PanelBackgroundBrush}"
+                BorderBrush="{DynamicResource PanelBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+            <StackPanel>
+                <TextBlock Text="说明" FontSize="16" FontWeight="Bold" />
+                <TextBlock Margin="0,12,0,0"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource SecondaryTextBrush}"
+                           Text="应用启动后会自动检查 GitHub Releases。若你在更新弹窗里选择“否”，当前版本会被标记为忽略，直到出现更高版本才会再次提示。" />
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="4"
+                    Margin="0,18,0,0"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Width="96"
+                    Content="关闭"
+                    IsDefault="True"
+                    Click="CloseButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -17,6 +17,7 @@ It is useful for turning frequently used scripts, development commands, operatio
   - `External Terminal`: better for interactive commands
 - Environment variables: define per-command environment variables
 - Execution history: store recent runs, summaries, and terminal output
+- Updates: automatically check GitHub Releases for newer versions after startup
 - Terminal log improvements:
   - automatic system hints when execution starts or ends
   - different colors for system hints and error output

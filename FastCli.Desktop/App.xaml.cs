@@ -22,6 +22,8 @@ public partial class App : System.Windows.Application
         var appDataDirectory = Path.Combine(localAppData, "FastCli");
         var databasePath = Path.Combine(appDataDirectory, "fastcli.db");
         var selectionStatePath = Path.Combine(appDataDirectory, "selection-state.json");
+        var updateStatePath = Path.Combine(appDataDirectory, "update-state.json");
+        var updateDownloadDirectory = Path.Combine(appDataDirectory, "updates");
         var schemaSql = LoadEmbeddedSql();
 
         var databaseInitializer = new SqliteDatabaseInitializer(databasePath, schemaSql);
@@ -29,11 +31,39 @@ public partial class App : System.Windows.Application
         var commandExecutor = new ProcessCommandExecutor();
         var appService = new FastCliAppService(repository, commandExecutor);
         var selectionStateStore = new SelectionStateStore(selectionStatePath);
+        var updateStateStore = new UpdateStateStore(updateStatePath);
+        var updateService = new GitHubReleaseUpdateService(updateStateStore, updateDownloadDirectory);
         var viewModel = new MainWindowViewModel(appService, selectionStateStore);
 
-        var window = new MainWindow(viewModel);
+        var window = new MainWindow(viewModel, updateService);
         MainWindow = window;
         window.Show();
+        ScheduleUpdateCheck(window, updateService);
+    }
+
+    private static void ScheduleUpdateCheck(Window window, GitHubReleaseUpdateService updateService)
+    {
+        EventHandler? contentRenderedHandler = null;
+        contentRenderedHandler = async (_, _) =>
+        {
+            window.ContentRendered -= contentRenderedHandler;
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1));
+
+                if (window.IsLoaded)
+                {
+                    await updateService.CheckForUpdatesAsync(window);
+                }
+            }
+            catch
+            {
+                // Ignore update check failures during startup.
+            }
+        };
+
+        window.ContentRendered += contentRenderedHandler;
     }
 
     private static string LoadEmbeddedSql()

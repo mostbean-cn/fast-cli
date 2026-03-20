@@ -265,6 +265,7 @@
                 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource TertiaryTextBrush}" VerticalAlignment="Center" Margin="0,0,16,0" />
+                    <Button Content="⚙" Click="OpenSettingsButton_Click" Style="{StaticResource SecondaryBorderlessButton}" Width="36" Height="36" FontSize="16" Margin="0,0,4,0" />
                     <Button Content="{Binding ThemeIcon}" Click="ToggleThemeButton_Click" Style="{StaticResource SecondaryBorderlessButton}" Width="36" Height="36" FontSize="16" />
                 </StackPanel>
             </Grid>
