@@ -3,6 +3,7 @@ using System.Windows;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
 using FastCli.Desktop.Mvvm;
+using FastCli.Desktop.Services;
 using FastCli.Domain.Enums;
 using FastCli.Domain.Models;
 
@@ -11,9 +12,11 @@ namespace FastCli.Desktop.ViewModels;
 public sealed class MainWindowViewModel : ObservableObject
 {
     private readonly IFastCliAppService _appService;
+    private readonly SelectionStateStore _selectionStateStore;
     private Dictionary<Guid, IReadOnlyList<CommandProfile>> _commandsByGroup = new();
     private CommandSession? _runningSession;
     private bool _suppressPreviewRefresh;
+    private bool _suppressSelectionPersistence;
 
     private CommandGroup? _selectedGroup;
     private CommandProfile? _selectedCommand;
@@ -32,9 +35,10 @@ public sealed class MainWindowViewModel : ObservableObject
     private string _currentLogText = string.Empty;
     private bool _isExecutionRunning;
 
-    public MainWindowViewModel(IFastCliAppService appService)
+    public MainWindowViewModel(IFastCliAppService appService, SelectionStateStore selectionStateStore)
     {
         _appService = appService;
+        _selectionStateStore = selectionStateStore;
     }
 
     public ObservableCollection<CommandGroup> Groups { get; } = new();
@@ -68,6 +72,7 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(CanCreateCommand));
                 LoadCommandsForSelectedGroup();
+                PersistSelectionStateIfNeeded();
             }
         }
     }
@@ -83,6 +88,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(CanRunCommand));
                 LoadEditorFromSelectedCommand();
                 _ = LoadExecutionHistoryAsync(value?.Id);
+                PersistSelectionStateIfNeeded();
             }
         }
     }
@@ -254,7 +260,8 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public async Task LoadAsync()
     {
-        await ReloadWorkspaceAsync();
+        var selectionState = await _selectionStateStore.LoadAsync();
+        await ReloadWorkspaceAsync(selectionState.SelectedGroupId, selectionState.SelectedCommandId);
     }
 
     public async Task CreateGroupAsync(string name)
@@ -495,6 +502,8 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private async Task ReloadWorkspaceAsync(Guid? preferredGroupId = null, Guid? preferredCommandId = null)
     {
+        _suppressSelectionPersistence = true;
+
         var snapshot = await _appService.LoadWorkspaceAsync();
         _commandsByGroup = snapshot.CommandsByGroup.ToDictionary(static item => item.Key, static item => item.Value);
 
@@ -507,6 +516,8 @@ public sealed class MainWindowViewModel : ObservableObject
             SelectedCommand = null;
             ReplaceCollection(ExecutionHistory, snapshot.RecentExecutionRecords);
             CurrentLogText = string.Empty;
+            _suppressSelectionPersistence = false;
+            PersistSelectionStateIfNeeded();
             return;
         }
 
@@ -519,6 +530,8 @@ public sealed class MainWindowViewModel : ObservableObject
             ?? Commands.FirstOrDefault();
 
         SelectedCommand = candidateCommand;
+        _suppressSelectionPersistence = false;
+        PersistSelectionStateIfNeeded();
     }
 
     private void LoadCommandsForSelectedGroup()
@@ -736,6 +749,22 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             StatusMessage = ex.Message;
         }
+    }
+
+    private void PersistSelectionStateIfNeeded()
+    {
+        if (_suppressSelectionPersistence)
+        {
+            return;
+        }
+
+        var snapshot = new SelectionStateSnapshot
+        {
+            SelectedGroupId = SelectedGroup?.Id,
+            SelectedCommandId = SelectedCommand?.Id
+        };
+
+        _ = _selectionStateStore.SaveAsync(snapshot);
     }
 
     private static void ReplaceCollection<T>(ObservableCollection<T> collection, IEnumerable<T> items)

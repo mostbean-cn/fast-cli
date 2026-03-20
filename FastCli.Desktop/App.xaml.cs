@@ -4,6 +4,7 @@ using System.Reflection;
 using FastCli.Application.Services;
 using FastCli.Desktop.ViewModels;
 using FastCli.Desktop.Mvvm;
+using FastCli.Desktop.Services;
 using FastCli.Infrastructure.Execution;
 using FastCli.Infrastructure.Persistence;
 
@@ -20,13 +21,15 @@ public partial class App : System.Windows.Application
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var appDataDirectory = Path.Combine(localAppData, "FastCli");
         var databasePath = Path.Combine(appDataDirectory, "fastcli.db");
+        var selectionStatePath = Path.Combine(appDataDirectory, "selection-state.json");
         var schemaSql = LoadEmbeddedSql();
 
         var databaseInitializer = new SqliteDatabaseInitializer(databasePath, schemaSql);
         var repository = new SqliteFastCliRepository(databaseInitializer);
         var commandExecutor = new ProcessCommandExecutor();
         var appService = new FastCliAppService(repository, commandExecutor);
-        var viewModel = new MainWindowViewModel(appService);
+        var selectionStateStore = new SelectionStateStore(selectionStatePath);
+        var viewModel = new MainWindowViewModel(appService, selectionStateStore);
 
         var window = new MainWindow(viewModel);
         MainWindow = window;

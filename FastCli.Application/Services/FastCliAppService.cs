@@ -244,9 +244,12 @@ public sealed class FastCliAppService : IFastCliAppService
             onOutput(line);
         }
 
-        var session = await _commandExecutor.StartEmbeddedAsync(request, ForwardOutput, cancellationToken);
-
-        _ = PersistExecutionResultAsync(runningRecord, session, logBuilder, logLock);
+        var executorSession = await _commandExecutor.StartEmbeddedAsync(request, ForwardOutput, cancellationToken);
+        var persistedCompletion = PersistExecutionResultAsync(runningRecord, executorSession, logBuilder, logLock);
+        var session = new CommandSession(
+            executorSession.ExecutionId,
+            persistedCompletion,
+            executorSession.StopAsync);
 
         return new CommandStartResult
         {
@@ -268,15 +271,17 @@ public sealed class FastCliAppService : IFastCliAppService
         return _commandExecutor.BuildDisplayInfo(ToExecutionRequest(profile));
     }
 
-    private async Task PersistExecutionResultAsync(
+    private async Task<CommandCompletionResult> PersistExecutionResultAsync(
         ExecutionRecord record,
         CommandSession session,
         StringBuilder logBuilder,
         object logLock)
     {
+        CommandCompletionResult completion;
+
         try
         {
-            var completion = await session.Completion.ConfigureAwait(false);
+            completion = await session.Completion.ConfigureAwait(false);
             record.Status = completion.Status;
             record.EndedAt = DateTimeOffset.Now;
             record.ExitCode = completion.ExitCode;
@@ -289,6 +294,11 @@ public sealed class FastCliAppService : IFastCliAppService
         }
         catch (Exception ex)
         {
+            completion = new CommandCompletionResult
+            {
+                Status = ExecutionStatus.Failure,
+                Summary = $"执行过程中发生异常：{ex.Message}"
+            };
             record.Status = ExecutionStatus.Failure;
             record.EndedAt = DateTimeOffset.Now;
             record.Summary = $"执行过程中发生异常：{ex.Message}";
@@ -300,6 +310,7 @@ public sealed class FastCliAppService : IFastCliAppService
         }
 
         await _repository.SaveExecutionRecordAsync(record).ConfigureAwait(false);
+        return completion;
     }
 
     private static CommandExecutionRequest ToExecutionRequest(CommandProfile profile)
