@@ -16,9 +16,10 @@
     <AssemblyName>FastCli</AssemblyName>
     <ApplicationIcon>..\assets\FastCli.ico</ApplicationIcon>
     <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
-    <InformationalVersion>1.0.0</InformationalVersion>
+    <VersionWithRevision>$(Version).0</VersionWithRevision>
+    <AssemblyVersion>$(VersionWithRevision)</AssemblyVersion>
+    <FileVersion>$(VersionWithRevision)</FileVersion>
+    <InformationalVersion>$(Version)</InformationalVersion>
     <Product>FastCli</Product>
     <Company>FastCli Project</Company>
     <Authors>FastCli Project</Authors>

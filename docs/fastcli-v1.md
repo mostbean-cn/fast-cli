@@ -31,6 +31,6 @@
 - 应用启动时会自动执行 `sql/001_init.sql` 初始化本地 SQLite。
 - 当前正式交付物包含：
   - 单文件可执行程序 `FastCli.exe`
-  - 安装包 `FastCli-Setup.exe`
+  - 安装包 `FastCli-Setup-v1.0.0.exe`
 - V1 不支持“应用内管理员权限 + 捕获输出”的组合，这类命令请改用外部终端模式。
 - `claude code` 这类交互命令建议使用 `ExternalTerminal`。

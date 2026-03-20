@@ -1,5 +1,7 @@
 #define MyAppName "FastCli"
-#define MyAppVersion "1.0.0"
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0.0"
+#endif
 #define MyAppPublisher "FastCli Project"
 #define MyAppExeName "FastCli.exe"
 #ifndef MyAppSourceExe
@@ -24,7 +26,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#MyOutputDir}
-OutputBaseFilename=FastCli-Setup
+OutputBaseFilename={#MyAppName}-Setup-v{#MyAppVersion}
 SetupIconFile=..\assets\FastCli.ico
 Compression=lzma2
 SolidCompression=yes
