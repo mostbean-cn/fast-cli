@@ -49,7 +49,7 @@ It is useful for turning frequently used scripts, development commands, operatio
 ### 1. Clone the repository
 
 ```powershell
-git clone <your-repo-url>
+git clone https://github.com/mostbean-cn/fast-cli.git
 cd fast-cli
 ```
 

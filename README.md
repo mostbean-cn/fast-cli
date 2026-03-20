@@ -49,7 +49,7 @@ FastCli 是一个基于 `C# / .NET 8 / WPF / SQLite` 的 Windows 命令工作台
 ### 1. 克隆仓库
 
 ```powershell
-git clone <your-repo-url>
+git clone https://github.com/mostbean-cn/fast-cli.git
 cd fast-cli
 ```
 
