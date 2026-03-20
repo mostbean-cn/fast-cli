@@ -27,6 +27,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private string _editedArgumentsText = string.Empty;
     private bool _editedRunAsAdministrator;
     private string _commandPreview = string.Empty;
+    private string _actualExecutionCommand = string.Empty;
     private string _statusMessage = "准备就绪";
     private string _currentLogText = string.Empty;
     private bool _isExecutionRunning;
@@ -44,9 +45,19 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public ObservableCollection<ExecutionRecord> ExecutionHistory { get; } = new();
 
-    public IReadOnlyList<ShellType> AvailableShellTypes { get; } = Enum.GetValues<ShellType>();
+    public IReadOnlyList<OptionItem<ShellType>> AvailableShellTypes { get; } =
+    [
+        new() { Value = ShellType.Cmd, Label = "cmd" },
+        new() { Value = ShellType.PowerShell, Label = "powershell" },
+        new() { Value = ShellType.Pwsh, Label = "pwsh" },
+        new() { Value = ShellType.Direct, Label = "direct" }
+    ];
 
-    public IReadOnlyList<CommandRunMode> AvailableRunModes { get; } = Enum.GetValues<CommandRunMode>();
+    public IReadOnlyList<OptionItem<CommandRunMode>> AvailableRunModes { get; } =
+    [
+        new() { Value = CommandRunMode.Embedded, Label = "应用内部执行" },
+        new() { Value = CommandRunMode.ExternalTerminal, Label = "外部终端执行" }
+    ];
 
     public CommandGroup? SelectedGroup
     {
@@ -184,6 +195,12 @@ public sealed class MainWindowViewModel : ObservableObject
         private set => SetProperty(ref _commandPreview, value);
     }
 
+    public string ActualExecutionCommand
+    {
+        get => _actualExecutionCommand;
+        private set => SetProperty(ref _actualExecutionCommand, value);
+    }
+
     public string StatusMessage
     {
         get => _statusMessage;
@@ -207,6 +224,24 @@ public sealed class MainWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(CanStopCommand));
             }
         }
+    }
+
+    public bool IsDarkTheme
+    {
+        get => ThemeManager.IsDarkTheme;
+        set
+        {
+            ThemeManager.IsDarkTheme = value;
+            OnPropertyChanged(nameof(IsDarkTheme));
+            OnPropertyChanged(nameof(ThemeIcon));
+        }
+    }
+
+    public string ThemeIcon => IsDarkTheme ? "🌙" : "☀️";
+
+    public void ToggleTheme()
+    {
+        IsDarkTheme = !IsDarkTheme;
     }
 
     public bool CanCreateCommand => SelectedGroup is not null;
@@ -518,6 +553,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 EditedRunAsAdministrator = false;
                 EnvironmentVariables.Clear();
                 CommandPreview = string.Empty;
+                ActualExecutionCommand = string.Empty;
                 return;
             }
 
@@ -616,11 +652,14 @@ public sealed class MainWindowViewModel : ObservableObject
 
         try
         {
-            CommandPreview = _appService.BuildPreview(BuildDraftFromEditor());
+            var displayInfo = _appService.BuildDisplayInfo(BuildDraftFromEditor());
+            CommandPreview = displayInfo.UserReadablePreview;
+            ActualExecutionCommand = displayInfo.ActualExecutionCommand;
         }
         catch (Exception ex)
         {
             CommandPreview = $"预览不可用：{ex.Message}";
+            ActualExecutionCommand = string.Empty;
         }
     }
 

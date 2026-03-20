@@ -7,9 +7,9 @@ namespace FastCli.Infrastructure.Execution;
 
 public sealed class ProcessCommandExecutor : ICommandExecutor
 {
-    public string BuildPreview(CommandExecutionRequest request)
+    public CommandDisplayInfo BuildDisplayInfo(CommandExecutionRequest request)
     {
-        return ShellCommandFactory.BuildPreview(request);
+        return ShellCommandFactory.BuildDisplayInfo(request);
     }
 
     public Task<CommandSession> StartEmbeddedAsync(

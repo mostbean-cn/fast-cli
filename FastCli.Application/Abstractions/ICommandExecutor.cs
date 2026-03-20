@@ -13,5 +13,5 @@ public interface ICommandExecutor
         CommandExecutionRequest request,
         CancellationToken cancellationToken = default);
 
-    string BuildPreview(CommandExecutionRequest request);
+    CommandDisplayInfo BuildDisplayInfo(CommandExecutionRequest request);
 }

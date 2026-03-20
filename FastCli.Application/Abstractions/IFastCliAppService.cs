@@ -33,5 +33,5 @@ public interface IFastCliAppService
 
     Task StopCommandAsync(CommandSession session, CancellationToken cancellationToken = default);
 
-    string BuildPreview(CommandProfile profile);
+    CommandDisplayInfo BuildDisplayInfo(CommandProfile profile);
 }

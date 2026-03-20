@@ -190,7 +190,7 @@ public sealed class FastCliAppService : IFastCliAppService
 
         ValidateCommandProfile(profile);
         var request = ToExecutionRequest(profile);
-        var preview = _commandExecutor.BuildPreview(request);
+        var displayInfo = _commandExecutor.BuildDisplayInfo(request);
 
         if (profile.RunMode == CommandRunMode.ExternalTerminal)
         {
@@ -214,7 +214,7 @@ public sealed class FastCliAppService : IFastCliAppService
             {
                 Profile = profile,
                 Record = record,
-                Preview = preview
+                Preview = displayInfo.UserReadablePreview
             };
         }
 
@@ -252,7 +252,7 @@ public sealed class FastCliAppService : IFastCliAppService
         {
             Profile = profile,
             Record = runningRecord,
-            Preview = preview,
+            Preview = displayInfo.UserReadablePreview,
             Session = session
         };
     }
@@ -262,10 +262,10 @@ public sealed class FastCliAppService : IFastCliAppService
         return session.StopAsync(cancellationToken);
     }
 
-    public string BuildPreview(CommandProfile profile)
+    public CommandDisplayInfo BuildDisplayInfo(CommandProfile profile)
     {
         ValidateCommandProfile(profile);
-        return _commandExecutor.BuildPreview(ToExecutionRequest(profile));
+        return _commandExecutor.BuildDisplayInfo(ToExecutionRequest(profile));
     }
 
     private async Task PersistExecutionResultAsync(

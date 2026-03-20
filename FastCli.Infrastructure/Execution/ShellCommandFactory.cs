@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Globalization;
 using FastCli.Application.Models;
 using FastCli.Domain.Enums;
 
@@ -15,12 +16,11 @@ internal static class ShellCommandFactory
         }
 
         var workingDirectory = ResolveWorkingDirectory(request.WorkingDirectory);
-        var commandPayload = BuildCommandPayload(request);
         var startInfo = request.ShellType switch
         {
-            ShellType.Cmd => new ProcessStartInfo("cmd.exe", $"/C {commandPayload}"),
-            ShellType.PowerShell => new ProcessStartInfo("powershell.exe", $"-NoLogo -NoProfile -EncodedCommand {EncodePowerShellCommand(commandPayload)}"),
-            ShellType.Pwsh => new ProcessStartInfo("pwsh.exe", $"-NoLogo -NoProfile -EncodedCommand {EncodePowerShellCommand(commandPayload)}"),
+            ShellType.Cmd => new ProcessStartInfo("cmd.exe", $"/C {BuildCommandPayload(request)}"),
+            ShellType.PowerShell => new ProcessStartInfo("powershell.exe", BuildEmbeddedPowerShellArguments(request)),
+            ShellType.Pwsh => new ProcessStartInfo("pwsh.exe", BuildEmbeddedPowerShellArguments(request)),
             ShellType.Direct => new ProcessStartInfo(request.CommandText, JoinArguments(request.Arguments)),
             _ => throw new InvalidOperationException("不支持的 Shell 类型。")
         };
@@ -30,8 +30,8 @@ internal static class ShellCommandFactory
         startInfo.CreateNoWindow = true;
         startInfo.RedirectStandardOutput = true;
         startInfo.RedirectStandardError = true;
-        startInfo.StandardOutputEncoding = Encoding.UTF8;
-        startInfo.StandardErrorEncoding = Encoding.UTF8;
+        startInfo.StandardOutputEncoding = GetEmbeddedOutputEncoding(request.ShellType);
+        startInfo.StandardErrorEncoding = GetEmbeddedOutputEncoding(request.ShellType);
         ApplyEnvironmentVariables(startInfo, request);
         return startInfo;
     }
@@ -39,13 +39,12 @@ internal static class ShellCommandFactory
     public static ProcessStartInfo CreateExternalStartInfo(CommandExecutionRequest request)
     {
         var workingDirectory = ResolveWorkingDirectory(request.WorkingDirectory);
-        var commandPayload = BuildCommandPayload(request);
         var startInfo = request.ShellType switch
         {
-            ShellType.Cmd => new ProcessStartInfo("cmd.exe", $"/K {commandPayload}"),
-            ShellType.PowerShell => new ProcessStartInfo("powershell.exe", $"-NoExit -NoLogo -NoProfile -EncodedCommand {EncodePowerShellCommand(commandPayload)}"),
-            ShellType.Pwsh => new ProcessStartInfo("pwsh.exe", $"-NoExit -NoLogo -NoProfile -EncodedCommand {EncodePowerShellCommand(commandPayload)}"),
-            ShellType.Direct => new ProcessStartInfo("cmd.exe", $"/K {commandPayload}"),
+            ShellType.Cmd => new ProcessStartInfo("cmd.exe", $"/K {BuildCommandPayload(request)}"),
+            ShellType.PowerShell => new ProcessStartInfo("powershell.exe", BuildExternalPowerShellArguments(request)),
+            ShellType.Pwsh => new ProcessStartInfo("pwsh.exe", BuildExternalPowerShellArguments(request)),
+            ShellType.Direct => new ProcessStartInfo("cmd.exe", $"/K {BuildCommandPayload(request)}"),
             _ => throw new InvalidOperationException("不支持的 Shell 类型。")
         };
 
@@ -61,23 +60,13 @@ internal static class ShellCommandFactory
         return startInfo;
     }
 
-    public static string BuildPreview(CommandExecutionRequest request)
+    public static CommandDisplayInfo BuildDisplayInfo(CommandExecutionRequest request)
     {
-        var shellPrefix = request.ShellType switch
+        return new CommandDisplayInfo
         {
-            ShellType.Cmd => request.RunMode == CommandRunMode.Embedded ? "cmd.exe /C" : "cmd.exe /K",
-            ShellType.PowerShell => request.RunMode == CommandRunMode.Embedded ? "powershell.exe -EncodedCommand" : "powershell.exe -NoExit -EncodedCommand",
-            ShellType.Pwsh => request.RunMode == CommandRunMode.Embedded ? "pwsh.exe -EncodedCommand" : "pwsh.exe -NoExit -EncodedCommand",
-            ShellType.Direct => request.RunMode == CommandRunMode.Embedded ? "direct" : "cmd.exe /K",
-            _ => string.Empty
+            UserReadablePreview = BuildUserReadablePreview(request),
+            ActualExecutionCommand = BuildActualExecutionCommand(request)
         };
-
-        var locationPrefix = string.IsNullOrWhiteSpace(request.WorkingDirectory)
-            ? string.Empty
-            : $"[{request.WorkingDirectory}] ";
-        var elevationPrefix = request.RunAsAdministrator ? "[管理员] " : string.Empty;
-
-        return $"{locationPrefix}{elevationPrefix}{shellPrefix} {BuildCommandPayload(request)}".Trim();
     }
 
     private static string BuildCommandPayload(CommandExecutionRequest request)
@@ -120,6 +109,59 @@ internal static class ShellCommandFactory
         return Convert.ToBase64String(Encoding.Unicode.GetBytes(commandText));
     }
 
+    private static string BuildUserReadablePreview(CommandExecutionRequest request)
+    {
+        return BuildCommandPayload(request);
+    }
+
+    private static string BuildActualExecutionCommand(CommandExecutionRequest request)
+    {
+        return request.ShellType switch
+        {
+            ShellType.Cmd => $"cmd.exe {(request.RunMode == CommandRunMode.Embedded ? "/C" : "/K")} {BuildCommandPayload(request)}",
+            ShellType.PowerShell => $"powershell.exe {(request.RunMode == CommandRunMode.Embedded ? "-NoLogo -NoProfile -NonInteractive -OutputFormat Text -EncodedCommand" : "-NoExit -NoLogo -NoProfile -OutputFormat Text -EncodedCommand")} {EncodePowerShellCommand(BuildPowerShellScript(request))}",
+            ShellType.Pwsh => $"pwsh.exe {(request.RunMode == CommandRunMode.Embedded ? "-NoLogo -NoProfile -NonInteractive -OutputFormat Text -EncodedCommand" : "-NoExit -NoLogo -NoProfile -OutputFormat Text -EncodedCommand")} {EncodePowerShellCommand(BuildPowerShellScript(request))}",
+            ShellType.Direct => request.RunMode == CommandRunMode.Embedded
+                ? $"{QuoteIfNeeded(request.CommandText)} {JoinArguments(request.Arguments)}".Trim()
+                : $"cmd.exe /K {BuildCommandPayload(request)}",
+            _ => string.Empty
+        };
+    }
+
+    private static string BuildEmbeddedPowerShellArguments(CommandExecutionRequest request)
+    {
+        var script = BuildPowerShellScript(request);
+        return $"-NoLogo -NoProfile -NonInteractive -OutputFormat Text -EncodedCommand {EncodePowerShellCommand(script)}";
+    }
+
+    private static string BuildExternalPowerShellArguments(CommandExecutionRequest request)
+    {
+        var script = BuildPowerShellScript(request);
+        return $"-NoExit -NoLogo -NoProfile -OutputFormat Text -EncodedCommand {EncodePowerShellCommand(script)}";
+    }
+
+    private static string BuildPowerShellScript(CommandExecutionRequest request)
+    {
+        var commandPayload = BuildCommandPayload(request);
+        return """
+[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [Console]::OutputEncoding
+if ($PSVersionTable.PSVersion.Major -ge 7) { $PSStyle.OutputRendering = 'PlainText' }
+""" + Environment.NewLine + commandPayload;
+    }
+
+    private static Encoding GetEmbeddedOutputEncoding(ShellType shellType)
+    {
+        return shellType switch
+        {
+            ShellType.Cmd => Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage),
+            ShellType.PowerShell => Encoding.UTF8,
+            ShellType.Pwsh => Encoding.UTF8,
+            _ => Encoding.UTF8
+        };
+    }
+
     private static void ApplyEnvironmentVariables(ProcessStartInfo startInfo, CommandExecutionRequest request)
     {
         foreach (var item in request.EnvironmentVariables)
@@ -135,7 +177,7 @@ internal static class ShellCommandFactory
     {
         if (string.IsNullOrWhiteSpace(workingDirectory))
         {
-            return Environment.CurrentDirectory;
+            return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         }
 
         return workingDirectory;

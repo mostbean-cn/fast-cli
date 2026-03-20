@@ -148,6 +148,18 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void RunCommandFromListButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.DataContext is not CommandProfile command)
+        {
+            return;
+        }
+
+        ViewModel.SelectedCommand = command;
+        await ViewModel.RunSelectedCommandAsync();
+        e.Handled = true;
+    }
+
     private void GroupListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _groupDragStartPoint = e.GetPosition(this);
@@ -264,5 +276,10 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    private void ToggleThemeButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.ToggleTheme();
     }
 }

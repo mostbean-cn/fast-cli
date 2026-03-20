@@ -2,6 +2,12 @@
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "FastCli Project"
 #define MyAppExeName "FastCli.exe"
+#ifndef MyAppSourceExe
+  #define MyAppSourceExe "..\artifacts\release\FastCli.exe"
+#endif
+#ifndef MyOutputDir
+  #define MyOutputDir "..\artifacts\release"
+#endif
 
 [Setup]
 AppId={{C9A6FF7C-B47D-4DFE-9B91-7E2F0E4D7F29}
@@ -17,7 +23,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-OutputDir=..\artifacts\release
+OutputDir={#MyOutputDir}
 OutputBaseFilename=FastCli-Setup
 SetupIconFile=..\assets\FastCli.ico
 Compression=lzma2
@@ -32,7 +38,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务:"; Flags: unchecked
 
 [Files]
-Source: "..\artifacts\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#MyAppSourceExe}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\FastCli"; Filename: "{app}\{#MyAppExeName}"
