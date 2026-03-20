@@ -38,6 +38,6 @@
     <SolidColorBrush x:Key="WarningButtonBackgroundBrush" Color="#D97706" />
 
     <!-- 终端背景与文字 -->
-    <SolidColorBrush x:Key="TerminalBackgroundBrush" Color="#0D1117" />
-    <SolidColorBrush x:Key="TerminalTextBrush" Color="#E6EDF3" />
+    <SolidColorBrush x:Key="TerminalBackgroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="TerminalTextBrush" Color="#111827" />
 </ResourceDictionary>

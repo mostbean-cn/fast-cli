@@ -47,10 +47,10 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public IReadOnlyList<OptionItem<ShellType>> AvailableShellTypes { get; } =
     [
-        new() { Value = ShellType.Cmd, Label = "cmd" },
-        new() { Value = ShellType.PowerShell, Label = "powershell" },
-        new() { Value = ShellType.Pwsh, Label = "pwsh" },
-        new() { Value = ShellType.Direct, Label = "direct" }
+        new() { Value = ShellType.Cmd, Label = "命令提示符 (cmd)" },
+        new() { Value = ShellType.PowerShell, Label = "Windows PowerShell" },
+        new() { Value = ShellType.Pwsh, Label = "PowerShell 7 (pwsh)" },
+        new() { Value = ShellType.Direct, Label = "直接启动程序" }
     ];
 
     public IReadOnlyList<OptionItem<CommandRunMode>> AvailableRunModes { get; } =
@@ -377,38 +377,44 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        await ExecuteWithStatusAsync(
-            async () =>
+        CurrentLogText = string.Empty;
+        SelectedHistoryRecord = null;
+
+        try
+        {
+            var draft = BuildDraftFromEditor();
+            var saved = await _appService.SaveCommandAsync(draft);
+            await ReloadWorkspaceAsync(saved.GroupId, saved.Id);
+
+            if (SelectedCommand is null)
             {
-                var draft = BuildDraftFromEditor();
-                var saved = await _appService.SaveCommandAsync(draft);
-                await ReloadWorkspaceAsync(saved.GroupId, saved.Id);
+                return;
+            }
 
-                if (SelectedCommand is null)
-                {
-                    return;
-                }
+            var result = await _appService.StartCommandAsync(
+                SelectedCommand.Id,
+                line => System.Windows.Application.Current.Dispatcher.Invoke(() => AppendLogLine(line)));
 
-                CurrentLogText = string.Empty;
-                SelectedHistoryRecord = null;
+            if (result.Session is null)
+            {
+                StatusMessage = result.Record.Summary;
+                AppendSystemLogLine(result.Record.Summary, isError: result.Record.Status == ExecutionStatus.Failure);
+                await LoadExecutionHistoryAsync(result.Profile.Id);
+                return;
+            }
 
-                var result = await _appService.StartCommandAsync(
-                    SelectedCommand.Id,
-                    line => System.Windows.Application.Current.Dispatcher.Invoke(() => AppendLogLine(line)));
+            _runningSession = result.Session;
+            IsExecutionRunning = true;
+            StatusMessage = $"开始执行：{result.Profile.Name}";
+            AppendSystemLogLine($"开始执行：{result.Profile.Name}", isError: false);
 
-                if (result.Session is null)
-                {
-                    StatusMessage = result.Record.Summary;
-                    await LoadExecutionHistoryAsync(result.Profile.Id);
-                    return;
-                }
-
-                _runningSession = result.Session;
-                IsExecutionRunning = true;
-                StatusMessage = $"开始执行：{result.Profile.Name}";
-
-                _ = ObserveRunningSessionAsync(result.Profile.Id, result.Session);
-            });
+            _ = ObserveRunningSessionAsync(result.Profile.Id, result.Session);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+            AppendSystemLogLine($"执行失败：{ex.Message}", isError: true);
+        }
     }
 
     public async Task StopExecutionAsync()
@@ -671,6 +677,11 @@ public sealed class MainWindowViewModel : ObservableObject
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 StatusMessage = result.Summary;
+
+                if (result.Status != ExecutionStatus.Success || string.IsNullOrWhiteSpace(CurrentLogText))
+                {
+                    AppendSystemLogLine(result.Summary, isError: result.Status == ExecutionStatus.Failure);
+                }
             });
         }
         catch (Exception ex)
@@ -678,6 +689,7 @@ public sealed class MainWindowViewModel : ObservableObject
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 StatusMessage = $"执行失败：{ex.Message}";
+                AppendSystemLogLine($"执行失败：{ex.Message}", isError: true);
             });
         }
         finally
@@ -699,6 +711,19 @@ public sealed class MainWindowViewModel : ObservableObject
         CurrentLogText = string.IsNullOrEmpty(CurrentLogText)
             ? $"{prefix} {line.Text}"
             : $"{CurrentLogText}{Environment.NewLine}{prefix} {line.Text}";
+    }
+
+    private void AppendSystemLogLine(string? text, bool isError)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        var prefix = isError ? "[ERR]" : "[SYS]";
+        CurrentLogText = string.IsNullOrEmpty(CurrentLogText)
+            ? $"{prefix} {text}"
+            : $"{CurrentLogText}{Environment.NewLine}{prefix} {text}";
     }
 
     private async Task ExecuteWithStatusAsync(Func<Task> action)

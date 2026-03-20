@@ -4,6 +4,7 @@
         xmlns:mvvm="clr-namespace:FastCli.Desktop.Mvvm"
         Title="FastCli - 命令工作台" Width="1200" Height="800"
         Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource PrimaryTextBrush}"
         Loaded="Window_Loaded">
     <Window.Resources>
         <mvvm:ShellTypeDisplayConverter x:Key="ShellTypeDisplayConverter" />
@@ -23,11 +24,78 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="ModernComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4" Margin="4,2">
+                            <ContentPresenter Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource SelectedItemBackgroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <ControlTemplate x:Key="ModernComboBoxToggleButton" TargetType="ToggleButton">
+            <Border x:Name="templateRoot" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="30" />
+                    </Grid.ColumnDefinitions>
+                    
+                    <Path x:Name="arrow" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M0,0 L4,4 L8,0" Stroke="{TemplateBinding Foreground}" StrokeThickness="2" Fill="Transparent" Stretch="None" />
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="templateRoot" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="arrow" Property="Data" Value="M0,4 L4,0 L8,4" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
         <Style TargetType="ComboBox">
             <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
-            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ModernComboBoxItemStyle}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="toggleButton" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" Foreground="{TemplateBinding Foreground}" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" Template="{StaticResource ModernComboBoxToggleButton}" Cursor="Hand" />
+                            <ContentPresenter x:Name="contentPresenter" IsHitTestVisible="False" Margin="{TemplateBinding Padding}" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                            
+                            <Popup x:Name="PART_Popup" AllowsTransparency="True" IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}" Placement="Bottom" PopupAnimation="Slide">
+                                <Border Margin="0,4,0,0" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="6" MaxHeight="{TemplateBinding MaxDropDownHeight}" MinWidth="{Binding ActualWidth, ElementName=toggleButton}">
+                                    <ScrollViewer x:Name="DropDownScrollViewer" Margin="0,4" CanContentScroll="True" VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter x:Name="ItemsPresenter" KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource SecondaryButtonBackgroundBrush}" />
@@ -74,6 +142,7 @@
         </Style>
         <Style TargetType="ListBoxItem">
             <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
             <Setter Property="Padding" Value="8" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -87,6 +156,84 @@
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter Property="Background" Value="{DynamicResource SelectedItemBackgroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ScrollBarThumbStyle" TargetType="Thumb">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="{DynamicResource TertiaryTextBrush}" CornerRadius="3" Opacity="0.6" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ScrollBar">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid x:Name="Bg" Background="{TemplateBinding Background}">
+                            <Track x:Name="PART_Track" IsDirectionReversed="true">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource ScrollBarThumbStyle}" />
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Width" Value="Auto" />
+                    <Setter Property="Height" Value="8" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ScrollBar">
+                                <Grid x:Name="Bg" Background="{TemplateBinding Background}">
+                                    <Track x:Name="PART_Track">
+                                        <Track.Thumb>
+                                            <Thumb Style="{StaticResource ScrollBarThumbStyle}" />
+                                        </Track.Thumb>
+                                    </Track>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ModernToggleSwitch" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border x:Name="SwitchBackground" Width="36" Height="20" CornerRadius="10" Background="{DynamicResource ControlBorderBrush}" BorderThickness="1" BorderBrush="{DynamicResource ControlBorderBrush}">
+                                <Ellipse x:Name="SwitchThumb" Width="14" Height="14" Fill="{DynamicResource PanelBackgroundBrush}" HorizontalAlignment="Left" Margin="2,0,0,0">
+                                    <Ellipse.Effect>
+                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.2" />
+                                    </Ellipse.Effect>
+                                </Ellipse>
+                            </Border>
+                            <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="SwitchBackground" Property="Background" Value="{DynamicResource PrimaryButtonBackgroundBrush}" />
+                                <Setter TargetName="SwitchBackground" Property="BorderBrush" Value="{DynamicResource PrimaryButtonBackgroundBrush}" />
+                                <Setter TargetName="SwitchThumb" Property="HorizontalAlignment" Value="Right" />
+                                <Setter TargetName="SwitchThumb" Property="Margin" Value="0,0,2,0" />
+                                <Setter TargetName="SwitchThumb" Property="Fill" Value="{DynamicResource PrimaryButtonForegroundBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -147,7 +294,7 @@
                                 <Button Content="➕" Click="AddGroupButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="新建分组" />
                             </StackPanel>
                         </StackPanel>
-                        <ListBox x:Name="GroupListBox" ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}" DisplayMemberPath="Name" AllowDrop="True" Background="Transparent" BorderThickness="0" PreviewMouseLeftButtonDown="GroupListBox_PreviewMouseLeftButtonDown" MouseMove="GroupListBox_MouseMove" Drop="GroupListBox_Drop" DragOver="GroupListBox_DragOver" />
+                        <ListBox x:Name="GroupListBox" ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}" DisplayMemberPath="Name" AllowDrop="True" Background="Transparent" Foreground="{DynamicResource PrimaryTextBrush}" BorderThickness="0" PreviewMouseLeftButtonDown="GroupListBox_PreviewMouseLeftButtonDown" MouseMove="GroupListBox_MouseMove" Drop="GroupListBox_Drop" DragOver="GroupListBox_DragOver" />
                     </DockPanel>
                     
                     <GridSplitter Grid.Row="1" Height="2" HorizontalAlignment="Stretch" Background="{DynamicResource PanelBorderBrush}" />
@@ -162,7 +309,7 @@
                                 <Button Content="➕" Click="AddCommandButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="新建命令" IsEnabled="{Binding CanCreateCommand}" />
                             </StackPanel>
                         </StackPanel>
-                        <ListBox x:Name="CommandListBox" ItemsSource="{Binding Commands}" SelectedItem="{Binding SelectedCommand, Mode=TwoWay}" AllowDrop="True" Background="Transparent" BorderThickness="0" PreviewMouseLeftButtonDown="CommandListBox_PreviewMouseLeftButtonDown" MouseMove="CommandListBox_MouseMove" Drop="CommandListBox_Drop" DragOver="CommandListBox_DragOver" MouseDoubleClick="CommandListBox_MouseDoubleClick">
+                        <ListBox x:Name="CommandListBox" ItemsSource="{Binding Commands}" SelectedItem="{Binding SelectedCommand, Mode=TwoWay}" AllowDrop="True" Background="Transparent" Foreground="{DynamicResource PrimaryTextBrush}" BorderThickness="0" PreviewMouseLeftButtonDown="CommandListBox_PreviewMouseLeftButtonDown" MouseMove="CommandListBox_MouseMove" Drop="CommandListBox_Drop" DragOver="CommandListBox_DragOver" MouseDoubleClick="CommandListBox_MouseDoubleClick">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Grid>
@@ -171,7 +318,7 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" />
+                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" />
                                             <TextBlock Text="{Binding ShellType, Converter={StaticResource ShellTypeDisplayConverter}}" FontSize="11" Foreground="{DynamicResource TertiaryTextBrush}" Margin="0,2,0,0" />
                                         </StackPanel>
                                         <Button Grid.Column="1"
@@ -200,16 +347,27 @@
                 </Grid.RowDefinitions>
                 
                 <!-- Editor -->
-                <ScrollViewer Grid.Row="0" Margin="24">
-                    <StackPanel MaxWidth="900" HorizontalAlignment="Left">
-                        <DockPanel Margin="0,0,0,20" Width="800">
+                <Grid Grid.Row="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Background="{DynamicResource PanelBackgroundBrush}"
+                            BorderBrush="{DynamicResource PanelBorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="24,20,24,16">
+                        <DockPanel Width="800" HorizontalAlignment="Left">
                             <TextBlock Text="编辑命令" FontSize="20" FontWeight="Bold" VerticalAlignment="Center" DockPanel.Dock="Left" />
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <Button Content="保存" Click="SaveCommandButton_Click" IsEnabled="{Binding CanEditCommand}" Margin="0,0,8,0" Width="80" />
                                 <Button Content="运行 🚀" Click="RunCommandButton_Click" IsEnabled="{Binding CanRunCommand}" Style="{StaticResource PrimaryButtonStyle}" Width="100" />
                             </StackPanel>
                         </DockPanel>
-                        
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" Margin="24,20,24,24">
+                        <StackPanel MaxWidth="900" HorizontalAlignment="Left">
                         <Grid Margin="0,0,0,16" Width="800" HorizontalAlignment="Left">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="2*" />
@@ -254,7 +412,7 @@
                                           SelectedValue="{Binding EditedRunMode, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Grid.Column="4" VerticalAlignment="Bottom" Margin="0,0,0,6">
-                                <CheckBox Content="管理员权限" IsChecked="{Binding EditedRunAsAdministrator, Mode=TwoWay}" Foreground="{DynamicResource PrimaryTextBrush}" />
+                                <CheckBox Content="管理员权限" IsChecked="{Binding EditedRunAsAdministrator, Mode=TwoWay}" Style="{StaticResource ModernToggleSwitch}" />
                             </StackPanel>
                         </Grid>
                         
@@ -276,12 +434,46 @@
                                     <Button Content="- 删除" Click="RemoveEnvironmentVariableButton_Click" Style="{StaticResource SecondaryBorderlessButton}" Foreground="{DynamicResource DangerButtonBackgroundBrush}" />
                                 </StackPanel>
                             </DockPanel>
-                            <DataGrid x:Name="EnvironmentVariablesGrid" Height="140" AutoGenerateColumns="False" CanUserAddRows="False" ItemsSource="{Binding EnvironmentVariables}" Background="{DynamicResource ControlBackgroundBrush}" RowBackground="{DynamicResource ControlBackgroundBrush}" BorderBrush="{DynamicResource ControlBorderBrush}" Foreground="{DynamicResource PrimaryTextBrush}" HeadersVisibility="Column">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Key" Width="*" Binding="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
-                                    <DataGridTextColumn Header="Value" Width="2*" Binding="{Binding Value, UpdateSourceTrigger=PropertyChanged}" />
-                                </DataGrid.Columns>
-                            </DataGrid>
+                            <Border BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="1" CornerRadius="4" Background="{DynamicResource ControlBackgroundBrush}" Padding="8,8,4,8">
+                                <Grid Height="130">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Margin="0,0,16,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="2*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Key" Foreground="{DynamicResource TertiaryTextBrush}" FontWeight="Bold" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2" Text="Value" Foreground="{DynamicResource TertiaryTextBrush}" FontWeight="Bold" VerticalAlignment="Center" />
+                                    </Grid>
+                                    
+                                    <ListBox x:Name="EnvironmentVariablesGrid" Grid.Row="1" ItemsSource="{Binding EnvironmentVariables}" Background="Transparent" Foreground="{DynamicResource PrimaryTextBrush}" BorderThickness="0" Margin="0,0,0,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" PreviewMouseWheel="EnvironmentVariablesGrid_PreviewMouseWheel">
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                                <Setter Property="Padding" Value="0,0,6,0" />
+                                                <Setter Property="Margin" Value="0,0,0,8" />
+                                                <EventSetter Event="UIElement.GotKeyboardFocus" Handler="EnvironmentVariablesGrid_GotKeyboardFocus" />
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="8" />
+                                                        <ColumnDefinition Width="2*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" Background="{DynamicResource PanelBackgroundBrush}" />
+                                                    <TextBox Grid.Column="2" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Background="{DynamicResource PanelBackgroundBrush}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Grid>
+                            </Border>
                         </StackPanel>
                         
                         <StackPanel Margin="0,0,0,16" Width="800" HorizontalAlignment="Left">
@@ -294,8 +486,9 @@
                             <TextBox FontFamily="Consolas" Height="100" IsReadOnly="True" Text="{Binding ActualExecutionCommand, Mode=OneWay}" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Background="{DynamicResource PanelBackgroundBrush}" Foreground="{DynamicResource TertiaryTextBrush}" />
                         </StackPanel>
                         
-                    </StackPanel>
-                </ScrollViewer>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
                 
                 <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch" Background="{DynamicResource PanelBorderBrush}" />
                 
@@ -306,13 +499,13 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     
-                    <Border BorderBrush="#30363D" BorderThickness="0,0,0,1">
+                    <Border BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,0,0,1">
                         <DockPanel Margin="16,0">
-                            <TextBlock Text=">_ 终端输出" Foreground="#8B949E" VerticalAlignment="Center" DockPanel.Dock="Left" FontFamily="Consolas" />
+                            <TextBlock Text=">_ 终端输出" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" DockPanel.Dock="Left" FontFamily="Consolas" />
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="⏹ 停止" Click="StopCommandButton_Click" IsEnabled="{Binding CanStopCommand}" Style="{StaticResource SecondaryBorderlessButton}" Foreground="#F85149" Margin="0,0,8,0" />
-                                <Button Content="📋 复制" Click="CopyLogButton_Click" Style="{StaticResource SecondaryBorderlessButton}" Foreground="#C9D1D9" Margin="0,0,8,0" />
-                                <Button Content="🧹 清空" Click="ClearLogButton_Click" Style="{StaticResource SecondaryBorderlessButton}" Foreground="#C9D1D9" />
+                                <Button Content="⏹ 停止" Click="StopCommandButton_Click" IsEnabled="{Binding CanStopCommand}" Style="{StaticResource SecondaryBorderlessButton}" Foreground="{DynamicResource DangerButtonBackgroundBrush}" Margin="0,0,8,0" />
+                                <Button Content="📋 复制" Click="CopyLogButton_Click" Style="{StaticResource SecondaryBorderlessButton}" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,8,0" />
+                                <Button Content="🧹 清空" Click="ClearLogButton_Click" Style="{StaticResource SecondaryBorderlessButton}" Foreground="{DynamicResource SecondaryTextBrush}" />
                             </StackPanel>
                         </DockPanel>
                     </Border>

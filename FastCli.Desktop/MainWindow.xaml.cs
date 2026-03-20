@@ -127,6 +127,14 @@ public partial class MainWindow : Window
         ViewModel.RemoveEnvironmentVariable(EnvironmentVariablesGrid.SelectedItem as EnvironmentVariableItem);
     }
 
+    private void EnvironmentVariablesGrid_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is ListBoxItem item)
+        {
+            item.IsSelected = true;
+        }
+    }
+
     private void CopyLogButton_Click(object sender, RoutedEventArgs e)
     {
         if (!string.IsNullOrEmpty(ViewModel.CurrentLogText))
@@ -275,6 +283,47 @@ public partial class MainWindow : Window
             source = VisualTreeHelper.GetParent(source);
         }
 
+        return null;
+    }
+    private void EnvironmentVariablesGrid_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ListBox listBox) return;
+        
+        var scrollViewer = FindVisualChild<ScrollViewer>(listBox);
+        if (scrollViewer == null) return;
+
+        bool canScrollUp = e.Delta > 0 && scrollViewer.VerticalOffset > 0;
+        bool canScrollDown = e.Delta < 0 && scrollViewer.VerticalOffset < scrollViewer.ScrollableHeight;
+
+        if (!canScrollUp && !canScrollDown)
+        {
+            e.Handled = true;
+            var e2 = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+            {
+                RoutedEvent = UIElement.MouseWheelEvent,
+                Source = sender
+            };
+            var parent = VisualTreeHelper.GetParent(listBox) as UIElement;
+            parent?.RaiseEvent(e2);
+        }
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T typedChild)
+            {
+                return typedChild;
+            }
+            
+            var result = FindVisualChild<T>(child);
+            if (result != null)
+            {
+                return result;
+            }
+        }
         return null;
     }
 
