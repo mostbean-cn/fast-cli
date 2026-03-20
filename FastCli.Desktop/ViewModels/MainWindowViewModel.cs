@@ -248,7 +248,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
-    public string ThemeIcon => IsDarkTheme ? "🌙" : "☀️";
+    public string ThemeIcon => ThemeManager.IsDarkTheme ? "\uE708" : "\uE706";
 
     public void ToggleTheme()
     {
