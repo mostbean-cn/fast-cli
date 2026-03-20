@@ -176,6 +176,11 @@ public sealed class GitHubReleaseUpdateService
         }
 
         var versionText = NormalizeVersionText(release.TagName);
+        if (string.IsNullOrWhiteSpace(versionText))
+        {
+            return null;
+        }
+
         var version = ParseVersion(versionText);
 
         if (version is null)
