@@ -5,6 +5,7 @@
         xmlns:mvvm="clr-namespace:FastCli.Desktop.Mvvm"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         Title="{loc:Loc MainWindow_Title}" Width="1200" Height="800"
+        WindowStartupLocation="CenterScreen"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="{DynamicResource PrimaryTextBrush}"
         UseLayoutRounding="True"
