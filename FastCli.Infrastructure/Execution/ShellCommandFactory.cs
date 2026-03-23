@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Globalization;
+using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
 using FastCli.Domain.Enums;
 
@@ -8,11 +9,11 @@ namespace FastCli.Infrastructure.Execution;
 
 internal static class ShellCommandFactory
 {
-    public static ProcessStartInfo CreateEmbeddedStartInfo(CommandExecutionRequest request)
+    public static ProcessStartInfo CreateEmbeddedStartInfo(CommandExecutionRequest request, IAppLocalizer localizer)
     {
         if (request.RunAsAdministrator)
         {
-            throw new InvalidOperationException("V1 暂不支持在应用内以管理员权限执行命令。");
+            throw new InvalidOperationException(localizer.Get("Service_EmbeddedAdminNotSupported"));
         }
 
         var workingDirectory = ResolveWorkingDirectory(request.WorkingDirectory);
@@ -22,7 +23,7 @@ internal static class ShellCommandFactory
             ShellType.PowerShell => new ProcessStartInfo("powershell.exe", BuildEmbeddedPowerShellArguments(request)),
             ShellType.Pwsh => new ProcessStartInfo("pwsh.exe", BuildEmbeddedPowerShellArguments(request)),
             ShellType.Direct => new ProcessStartInfo(request.CommandText, JoinArguments(request.Arguments)),
-            _ => throw new InvalidOperationException("不支持的 Shell 类型。")
+            _ => throw new InvalidOperationException(localizer.Get("Service_UnsupportedShellType"))
         };
 
         startInfo.WorkingDirectory = workingDirectory;
@@ -36,7 +37,7 @@ internal static class ShellCommandFactory
         return startInfo;
     }
 
-    public static ProcessStartInfo CreateExternalStartInfo(CommandExecutionRequest request)
+    public static ProcessStartInfo CreateExternalStartInfo(CommandExecutionRequest request, IAppLocalizer localizer)
     {
         var workingDirectory = ResolveWorkingDirectory(request.WorkingDirectory);
         var startInfo = request.ShellType switch
@@ -45,7 +46,7 @@ internal static class ShellCommandFactory
             ShellType.PowerShell => new ProcessStartInfo("powershell.exe", BuildExternalPowerShellArguments(request)),
             ShellType.Pwsh => new ProcessStartInfo("pwsh.exe", BuildExternalPowerShellArguments(request)),
             ShellType.Direct => new ProcessStartInfo("cmd.exe", $"/K {BuildCommandPayload(request)}"),
-            _ => throw new InvalidOperationException("不支持的 Shell 类型。")
+            _ => throw new InvalidOperationException(localizer.Get("Service_UnsupportedShellType"))
         };
 
         startInfo.WorkingDirectory = workingDirectory;

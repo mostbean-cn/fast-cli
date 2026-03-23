@@ -3,6 +3,7 @@ using System.Windows;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
 using FastCli.Application.Utilities;
+using FastCli.Desktop.Localization;
 using FastCli.Desktop.Mvvm;
 using FastCli.Desktop.Services;
 using FastCli.Domain.Enums;
@@ -12,7 +13,22 @@ namespace FastCli.Desktop.ViewModels;
 
 public sealed class MainWindowViewModel : ObservableObject
 {
+    private static readonly IReadOnlyList<OptionItem<ShellType>> ShellTypeOptions =
+    [
+        new() { Value = ShellType.Cmd, Label = string.Empty },
+        new() { Value = ShellType.PowerShell, Label = string.Empty },
+        new() { Value = ShellType.Pwsh, Label = string.Empty },
+        new() { Value = ShellType.Direct, Label = string.Empty }
+    ];
+
+    private static readonly IReadOnlyList<OptionItem<CommandRunMode>> RunModeOptions =
+    [
+        new() { Value = CommandRunMode.Embedded, Label = string.Empty },
+        new() { Value = CommandRunMode.ExternalTerminal, Label = string.Empty }
+    ];
+
     private readonly IFastCliAppService _appService;
+    private readonly LocalizationManager _localization;
     private readonly SelectionStateStore _selectionStateStore;
     private Dictionary<Guid, IReadOnlyList<CommandProfile>> _commandsByGroup = new();
     private CommandSession? _runningSession;
@@ -33,15 +49,22 @@ public sealed class MainWindowViewModel : ObservableObject
     private bool _editedRunAsAdministrator;
     private string _commandPreview = string.Empty;
     private string _actualExecutionCommand = string.Empty;
-    private string _statusMessage = "准备就绪";
+    private string _statusMessage = string.Empty;
+    private string? _statusMessageKey;
+    private object?[] _statusMessageArgs = [];
+    private string? _statusMessageRawText;
     private string _currentLogText = string.Empty;
     private string _currentLogTranscript = string.Empty;
     private bool _isExecutionRunning;
 
-    public MainWindowViewModel(IFastCliAppService appService, SelectionStateStore selectionStateStore)
+    public MainWindowViewModel(IFastCliAppService appService, SelectionStateStore selectionStateStore, LocalizationManager localization)
     {
         _appService = appService;
         _selectionStateStore = selectionStateStore;
+        _localization = localization;
+        UpdateLocalizedOptionLabels();
+        _localization.LanguageChanged += (_, _) => OnLanguageChanged();
+        SetStatusMessage("MainWindow_StatusReady");
     }
 
     public ObservableCollection<CommandGroup> Groups { get; } = new();
@@ -54,19 +77,9 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public ObservableCollection<TerminalLogEntry> TerminalLogEntries { get; } = new();
 
-    public IReadOnlyList<OptionItem<ShellType>> AvailableShellTypes { get; } =
-    [
-        new() { Value = ShellType.Cmd, Label = "命令提示符 (cmd)" },
-        new() { Value = ShellType.PowerShell, Label = "Windows PowerShell" },
-        new() { Value = ShellType.Pwsh, Label = "PowerShell 7 (pwsh)" },
-        new() { Value = ShellType.Direct, Label = "直接启动程序" }
-    ];
+    public IReadOnlyList<OptionItem<ShellType>> AvailableShellTypes => ShellTypeOptions;
 
-    public IReadOnlyList<OptionItem<CommandRunMode>> AvailableRunModes { get; } =
-    [
-        new() { Value = CommandRunMode.Embedded, Label = "应用内部执行" },
-        new() { Value = CommandRunMode.ExternalTerminal, Label = "外部终端执行" }
-    ];
+    public IReadOnlyList<OptionItem<CommandRunMode>> AvailableRunModes => RunModeOptions;
 
     public CommandGroup? SelectedGroup
     {
@@ -276,7 +289,7 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 var group = await _appService.CreateGroupAsync(name);
                 await ReloadWorkspaceAsync(group.Id, null);
-                StatusMessage = $"已创建分组：{group.Name}";
+                SetStatusMessage("MainWindow_GroupCreated", group.Name);
             });
     }
 
@@ -292,7 +305,7 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 var group = await _appService.RenameGroupAsync(SelectedGroup.Id, name);
                 await ReloadWorkspaceAsync(group.Id, SelectedCommand?.Id);
-                StatusMessage = $"已重命名分组：{group.Name}";
+                SetStatusMessage("MainWindow_GroupRenamed", group.Name);
             });
     }
 
@@ -310,7 +323,7 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 await _appService.DeleteGroupAsync(groupId);
                 await ReloadWorkspaceAsync();
-                StatusMessage = "已删除分组。";
+                SetStatusMessage("MainWindow_GroupDeleted");
             });
     }
 
@@ -324,9 +337,9 @@ public sealed class MainWindowViewModel : ObservableObject
         await ExecuteWithStatusAsync(
             async () =>
             {
-                var profile = await _appService.CreateCommandAsync(SelectedGroup.Id, "新命令");
+                var profile = await _appService.CreateCommandAsync(SelectedGroup.Id, _localization.Get("MainWindow_DefaultCommandName"));
                 await ReloadWorkspaceAsync(profile.GroupId, profile.Id);
-                StatusMessage = $"已创建命令：{profile.Name}";
+                SetStatusMessage("MainWindow_StatusCommandCreated", profile.Name);
             });
     }
 
@@ -342,7 +355,7 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 var profile = await _appService.DuplicateCommandAsync(SelectedCommand.Id);
                 await ReloadWorkspaceAsync(profile.GroupId, profile.Id);
-                StatusMessage = $"已复制命令：{profile.Name}";
+                SetStatusMessage("MainWindow_StatusCommandDuplicated", profile.Name);
             });
     }
 
@@ -361,7 +374,7 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 await _appService.DeleteCommandAsync(commandId);
                 await ReloadWorkspaceAsync(groupId, null);
-                StatusMessage = "已删除命令。";
+                SetStatusMessage("MainWindow_StatusCommandDeleted");
             });
     }
 
@@ -378,7 +391,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 var draft = BuildDraftFromEditor();
                 var saved = await _appService.SaveCommandAsync(draft);
                 await ReloadWorkspaceAsync(saved.GroupId, saved.Id);
-                StatusMessage = $"已保存命令：{saved.Name}";
+                SetStatusMessage("MainWindow_StatusCommandSaved", saved.Name);
             });
     }
 
@@ -410,7 +423,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
             if (result.Session is null)
             {
-                StatusMessage = result.Record.Summary;
+                SetStatusMessageRaw(result.Record.Summary);
                 AppendSystemLogLine(result.Record.Summary, isError: result.Record.Status == ExecutionStatus.Failure);
                 _suppressHistoryRestore = false;
                 await LoadExecutionHistoryAsync(result.Profile.Id);
@@ -419,16 +432,16 @@ public sealed class MainWindowViewModel : ObservableObject
 
             _runningSession = result.Session;
             IsExecutionRunning = true;
-            StatusMessage = $"开始执行：{result.Profile.Name}";
-            AppendSystemLogLine($"开始执行：{result.Profile.Name}", isError: false);
+            SetStatusMessage("MainWindow_StatusCommandStarted", result.Profile.Name);
+            AppendSystemLogLine(_localization.Format("MainWindow_StatusCommandStarted", result.Profile.Name), isError: false);
 
             _ = ObserveRunningSessionAsync(result.Profile.Id, result.Session);
         }
         catch (Exception ex)
         {
             _suppressHistoryRestore = false;
-            StatusMessage = ex.Message;
-            AppendSystemLogLine($"执行失败：{ex.Message}", isError: true);
+            SetStatusMessage("MainWindow_ExecutionFailed", ex.Message);
+            AppendSystemLogLine(_localization.Format("MainWindow_ExecutionFailed", ex.Message), isError: true);
         }
     }
 
@@ -443,7 +456,7 @@ public sealed class MainWindowViewModel : ObservableObject
             async () =>
             {
                 await _appService.StopCommandAsync(_runningSession);
-                StatusMessage = "已请求停止当前命令。";
+                SetStatusMessage("MainWindow_StatusStopRequested");
             });
     }
 
@@ -639,7 +652,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ex.Message;
+            SetStatusMessageRaw(ex.Message);
         }
     }
 
@@ -647,7 +660,7 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         if (SelectedCommand is null)
         {
-            throw new InvalidOperationException("当前没有可保存的命令。");
+            throw new InvalidOperationException(_localization.Get("MainWindow_NoCommandToSave"));
         }
 
         return new CommandProfile
@@ -693,7 +706,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            CommandPreview = $"预览不可用：{ex.Message}";
+            CommandPreview = _localization.Format("MainWindow_PreviewUnavailable", ex.Message);
             ActualExecutionCommand = string.Empty;
         }
     }
@@ -705,7 +718,7 @@ public sealed class MainWindowViewModel : ObservableObject
             var result = await session.Completion;
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                StatusMessage = result.Summary;
+                SetStatusMessageRaw(result.Summary);
                 AppendSystemLogLine(result.Summary, isError: result.Status == ExecutionStatus.Failure);
             });
         }
@@ -713,8 +726,8 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                StatusMessage = $"执行失败：{ex.Message}";
-                AppendSystemLogLine($"执行失败：{ex.Message}", isError: true);
+                SetStatusMessage("MainWindow_ExecutionFailed", ex.Message);
+                AppendSystemLogLine(_localization.Format("MainWindow_ExecutionFailed", ex.Message), isError: true);
             });
         }
         finally
@@ -793,7 +806,55 @@ public sealed class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ex.Message;
+            SetStatusMessageRaw(ex.Message);
+        }
+    }
+
+    private void OnLanguageChanged()
+    {
+        UpdateLocalizedOptionLabels();
+        RefreshStatusMessage();
+        RefreshPreviewSafe();
+    }
+
+    private void UpdateLocalizedOptionLabels()
+    {
+        ShellTypeOptions[0].Label = _localization.Get("Shell_CmdOption");
+        ShellTypeOptions[1].Label = _localization.Get("Shell_PowerShellOption");
+        ShellTypeOptions[2].Label = _localization.Get("Shell_PwshOption");
+        ShellTypeOptions[3].Label = _localization.Get("Shell_DirectOption");
+
+        RunModeOptions[0].Label = _localization.Get("RunMode_Embedded");
+        RunModeOptions[1].Label = _localization.Get("RunMode_ExternalTerminal");
+    }
+
+    private void SetStatusMessage(string key, params object?[] args)
+    {
+        _statusMessageKey = key;
+        _statusMessageArgs = args;
+        _statusMessageRawText = null;
+        StatusMessage = _localization.Format(key, args);
+    }
+
+    private void SetStatusMessageRaw(string text)
+    {
+        _statusMessageKey = null;
+        _statusMessageArgs = [];
+        _statusMessageRawText = text;
+        StatusMessage = text;
+    }
+
+    private void RefreshStatusMessage()
+    {
+        if (!string.IsNullOrWhiteSpace(_statusMessageKey))
+        {
+            StatusMessage = _localization.Format(_statusMessageKey, _statusMessageArgs);
+            return;
+        }
+
+        if (_statusMessageRawText is not null)
+        {
+            StatusMessage = _statusMessageRawText;
         }
     }
 

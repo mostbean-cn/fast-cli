@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Collections.Specialized;
+using FastCli.Desktop.Localization;
 using FastCli.Desktop.Services;
 using FastCli.Desktop.ViewModels;
 using FastCli.Desktop.Views;
@@ -15,6 +16,7 @@ public partial class MainWindow : Window
     private Point _groupDragStartPoint;
     private Point _commandDragStartPoint;
     private readonly GitHubReleaseUpdateService _updateService;
+    private SettingsView? _settingsView;
 
     public MainWindow(MainWindowViewModel viewModel, GitHubReleaseUpdateService updateService)
     {
@@ -34,7 +36,12 @@ public partial class MainWindow : Window
 
     private async void AddGroupButton_Click(object sender, RoutedEventArgs e)
     {
-        var name = TextPromptWindow.ShowPrompt(this, "新建分组", "请输入分组名称：", "新分组");
+        var localization = LocalizationManager.Instance;
+        var name = TextPromptWindow.ShowPrompt(
+            this,
+            localization.Get("MainWindow_NewGroupTitle"),
+            localization.Get("MainWindow_NewGroupMessage"),
+            localization.Get("MainWindow_DefaultGroupName"));
 
         if (!string.IsNullOrWhiteSpace(name))
         {
@@ -49,7 +56,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        var name = TextPromptWindow.ShowPrompt(this, "重命名分组", "请输入新的分组名称：", ViewModel.SelectedGroup.Name);
+        var localization = LocalizationManager.Instance;
+        var name = TextPromptWindow.ShowPrompt(
+            this,
+            localization.Get("MainWindow_RenameGroupTitle"),
+            localization.Get("MainWindow_RenameGroupMessage"),
+            ViewModel.SelectedGroup.Name);
 
         if (!string.IsNullOrWhiteSpace(name))
         {
@@ -66,8 +78,8 @@ public partial class MainWindow : Window
 
         var result = MessageBox.Show(
             this,
-            $"确认删除分组“{ViewModel.SelectedGroup.Name}”及其下所有命令吗？",
-            "删除确认",
+            LocalizationManager.Instance.Format("MainWindow_DeleteGroupConfirmMessage", ViewModel.SelectedGroup.Name),
+            LocalizationManager.Instance.Get("MainWindow_DeleteConfirmTitle"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
 
@@ -96,8 +108,8 @@ public partial class MainWindow : Window
 
         var result = MessageBox.Show(
             this,
-            $"确认删除命令“{ViewModel.SelectedCommand.Name}”吗？",
-            "删除确认",
+            LocalizationManager.Instance.Format("MainWindow_DeleteCommandConfirmMessage", ViewModel.SelectedCommand.Name),
+            LocalizationManager.Instance.Get("MainWindow_DeleteConfirmTitle"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
 
@@ -339,12 +351,48 @@ public partial class MainWindow : Window
 
     private void OpenSettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        var settingsViewModel = new SettingsWindowViewModel(_updateService);
-        SettingsWindow.ShowSettingsDialog(this, settingsViewModel);
+        if (SettingsPageContainer.Visibility == Visibility.Visible)
+        {
+            HideSettingsPage();
+            return;
+        }
+
+        ShowSettingsPage();
     }
 
     private void TerminalLogEntries_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         Dispatcher.BeginInvoke(() => TerminalLogScrollViewer.ScrollToEnd());
+    }
+
+    private void ShowSettingsPage()
+    {
+        if (SettingsPageContainer.Visibility == Visibility.Visible)
+        {
+            return;
+        }
+
+        var settingsViewModel = new SettingsWindowViewModel(_updateService, LocalizationManager.Instance);
+        _settingsView = new SettingsView(settingsViewModel);
+        _settingsView.BackRequested += SettingsView_BackRequested;
+        SettingsPageHost.Content = _settingsView;
+        SettingsPageContainer.Visibility = Visibility.Visible;
+    }
+
+    private void HideSettingsPage()
+    {
+        if (_settingsView is not null)
+        {
+            _settingsView.BackRequested -= SettingsView_BackRequested;
+            _settingsView = null;
+        }
+
+        SettingsPageHost.Content = null;
+        SettingsPageContainer.Visibility = Visibility.Collapsed;
+    }
+
+    private void SettingsView_BackRequested(object? sender, EventArgs e)
+    {
+        HideSettingsPage();
     }
 }

@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
+using FastCli.Application.Abstractions;
 
 namespace FastCli.Desktop.Services;
 
@@ -23,13 +24,15 @@ public sealed class GitHubReleaseUpdateService
 
     private static readonly HttpClient HttpClient = CreateHttpClient();
 
+    private readonly IAppLocalizer _localizer;
     private readonly UpdateStateStore _updateStateStore;
     private readonly string _downloadDirectoryPath;
 
-    public GitHubReleaseUpdateService(UpdateStateStore updateStateStore, string downloadDirectoryPath)
+    public GitHubReleaseUpdateService(UpdateStateStore updateStateStore, string downloadDirectoryPath, IAppLocalizer localizer)
     {
         _updateStateStore = updateStateStore;
         _downloadDirectoryPath = downloadDirectoryPath;
+        _localizer = localizer;
     }
 
     public static string GetCurrentVersionText()
@@ -88,8 +91,8 @@ public sealed class GitHubReleaseUpdateService
             {
                 await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
                     owner,
-                    "暂时无法获取 GitHub Releases 最新版本信息。",
-                    "检查更新",
+                    _localizer.Get("Update_CannotFetchLatest"),
+                    _localizer.Get("Update_CheckTitle"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information));
             }
@@ -103,8 +106,8 @@ public sealed class GitHubReleaseUpdateService
             {
                 await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
                     owner,
-                    $"当前已是最新版本：v{currentVersionText}",
-                    "检查更新",
+                    _localizer.Format("Update_AlreadyLatest", currentVersionText),
+                    _localizer.Get("Update_CheckTitle"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information));
             }
@@ -123,7 +126,7 @@ public sealed class GitHubReleaseUpdateService
         var result = await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
             owner,
             message,
-            "发现新版本",
+            _localizer.Get("Update_NewVersionTitle"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Information));
 
@@ -147,8 +150,8 @@ public sealed class GitHubReleaseUpdateService
         {
             await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
                 owner,
-                $"下载更新失败：{ex.Message}",
-                "更新失败",
+                _localizer.Format("Update_DownloadFailed", ex.Message),
+                _localizer.Get("Update_FailedTitle"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Error));
         }
@@ -231,18 +234,15 @@ public sealed class GitHubReleaseUpdateService
         });
     }
 
-    private static string BuildUpdatePromptMessage(string currentVersionText, GitHubReleaseInfo release)
+    private string BuildUpdatePromptMessage(string currentVersionText, GitHubReleaseInfo release)
     {
         var releaseNotes = string.IsNullOrWhiteSpace(release.ReleaseNotes)
-            ? "本次发布未填写更新说明。"
+            ? _localizer.Get("Update_NoReleaseNotes")
             : TruncateReleaseNotes(release.ReleaseNotes);
 
-        return
-            $"当前版本：v{currentVersionText}{Environment.NewLine}" +
-            $"最新版本：v{release.VersionText}{Environment.NewLine}{Environment.NewLine}" +
-            "是否现在下载安装更新？" +
-            $"{Environment.NewLine}选择“否”将忽略当前版本，直到有更高版本发布。" +
-            $"{Environment.NewLine}{Environment.NewLine}更新说明：{Environment.NewLine}{releaseNotes}";
+        return _localizer
+            .Format("Update_Prompt", currentVersionText, release.VersionText, releaseNotes)
+            .Replace("\n", Environment.NewLine, StringComparison.Ordinal);
     }
 
     private static string TruncateReleaseNotes(string releaseNotes)

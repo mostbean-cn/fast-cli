@@ -1,4 +1,5 @@
 using System.Windows;
+using FastCli.Desktop.Localization;
 
 namespace FastCli.Desktop.Views;
 
@@ -7,7 +8,7 @@ public partial class TextPromptWindow : Window
     public TextPromptWindow(string title, string message, string initialValue)
     {
         InitializeComponent();
-        Title = title;
+        Title = string.IsNullOrWhiteSpace(title) ? LocalizationManager.Instance.Get("TextPrompt_TitleDefault") : title;
         MessageTextBlock.Text = message;
         InputTextBox.Text = initialValue;
         Loaded += (_, _) =>
@@ -31,7 +32,12 @@ public partial class TextPromptWindow : Window
     {
         if (string.IsNullOrWhiteSpace(InputTextBox.Text))
         {
-            MessageBox.Show(this, "请输入内容。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(
+                this,
+                LocalizationManager.Instance.Get("TextPrompt_EmptyContent"),
+                LocalizationManager.Instance.Get("TextPrompt_NoticeTitle"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
             return;
         }
 

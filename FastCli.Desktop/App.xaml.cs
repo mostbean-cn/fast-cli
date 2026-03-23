@@ -2,6 +2,7 @@ using System.Windows;
 using System.IO;
 using System.Reflection;
 using FastCli.Application.Services;
+using FastCli.Desktop.Localization;
 using FastCli.Desktop.ViewModels;
 using FastCli.Desktop.Mvvm;
 using FastCli.Desktop.Services;
@@ -16,6 +17,7 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
+        LocalizationManager.Instance.Initialize();
         ThemeManager.Initialize();
 
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -27,13 +29,14 @@ public partial class App : System.Windows.Application
         var schemaSql = LoadEmbeddedSql();
 
         var databaseInitializer = new SqliteDatabaseInitializer(databasePath, schemaSql);
-        var repository = new SqliteFastCliRepository(databaseInitializer);
-        var commandExecutor = new ProcessCommandExecutor();
-        var appService = new FastCliAppService(repository, commandExecutor);
+        var localizer = LocalizationManager.Instance;
+        var repository = new SqliteFastCliRepository(databaseInitializer, localizer);
+        var commandExecutor = new ProcessCommandExecutor(localizer);
+        var appService = new FastCliAppService(repository, commandExecutor, localizer);
         var selectionStateStore = new SelectionStateStore(selectionStatePath);
         var updateStateStore = new UpdateStateStore(updateStatePath);
-        var updateService = new GitHubReleaseUpdateService(updateStateStore, updateDownloadDirectory);
-        var viewModel = new MainWindowViewModel(appService, selectionStateStore);
+        var updateService = new GitHubReleaseUpdateService(updateStateStore, updateDownloadDirectory, localizer);
+        var viewModel = new MainWindowViewModel(appService, selectionStateStore, localizer);
 
         var window = new MainWindow(viewModel, updateService);
         MainWindow = window;
@@ -75,13 +78,13 @@ public partial class App : System.Windows.Application
 
         if (resourceName is null)
         {
-            throw new InvalidOperationException("未找到内嵌 SQL 资源。");
+            throw new InvalidOperationException(LocalizationManager.Instance.Get("App_EmbeddedSqlNotFound"));
         }
         using var stream = assembly.GetManifestResourceStream(resourceName);
 
         if (stream is null)
         {
-            throw new InvalidOperationException($"未找到内嵌 SQL 资源：{resourceName}");
+            throw new InvalidOperationException(LocalizationManager.Instance.Format("App_EmbeddedSqlNotFoundWithName", resourceName));
         }
 
         using var reader = new StreamReader(stream);

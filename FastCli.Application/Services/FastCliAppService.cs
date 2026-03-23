@@ -11,12 +11,14 @@ namespace FastCli.Application.Services;
 public sealed class FastCliAppService : IFastCliAppService
 {
     private readonly ICommandExecutor _commandExecutor;
+    private readonly IAppLocalizer _localizer;
     private readonly IFastCliRepository _repository;
 
-    public FastCliAppService(IFastCliRepository repository, ICommandExecutor commandExecutor)
+    public FastCliAppService(IFastCliRepository repository, ICommandExecutor commandExecutor, IAppLocalizer localizer)
     {
         _repository = repository;
         _commandExecutor = commandExecutor;
+        _localizer = localizer;
     }
 
     public async Task<WorkspaceSnapshot> LoadWorkspaceAsync(CancellationToken cancellationToken = default)
@@ -41,7 +43,7 @@ public sealed class FastCliAppService : IFastCliAppService
 
     public async Task<CommandGroup> CreateGroupAsync(string name, CancellationToken cancellationToken = default)
     {
-        var normalizedName = RequireName(name, "分组名称不能为空。");
+        var normalizedName = RequireName(name, _localizer.Get("Service_GroupNameRequired"));
         var groups = await _repository.GetGroupsAsync(cancellationToken);
         var now = DateTimeOffset.Now;
 
@@ -60,9 +62,9 @@ public sealed class FastCliAppService : IFastCliAppService
     public async Task<CommandGroup> RenameGroupAsync(Guid groupId, string name, CancellationToken cancellationToken = default)
     {
         var group = await _repository.GetGroupAsync(groupId, cancellationToken)
-            ?? throw new InvalidOperationException("未找到目标分组。");
+            ?? throw new InvalidOperationException(_localizer.Get("Service_TargetGroupNotFound"));
 
-        group.Name = RequireName(name, "分组名称不能为空。");
+        group.Name = RequireName(name, _localizer.Get("Service_GroupNameRequired"));
         group.UpdatedAt = DateTimeOffset.Now;
         await _repository.SaveGroupAsync(group, cancellationToken);
         return group;
@@ -81,18 +83,18 @@ public sealed class FastCliAppService : IFastCliAppService
     public async Task<CommandProfile> CreateCommandAsync(Guid groupId, string name, CancellationToken cancellationToken = default)
     {
         _ = await _repository.GetGroupAsync(groupId, cancellationToken)
-            ?? throw new InvalidOperationException("目标分组不存在。");
+            ?? throw new InvalidOperationException(_localizer.Get("Service_TargetGroupMissing"));
         var commands = await _repository.GetCommandsByGroupAsync(groupId, cancellationToken);
         var now = DateTimeOffset.Now;
 
         var profile = new CommandProfile
         {
             GroupId = groupId,
-            Name = RequireName(name, "命令名称不能为空。"),
+            Name = RequireName(name, _localizer.Get("Service_CommandNameRequired")),
             Description = string.Empty,
             ShellType = ShellType.Cmd,
             RunMode = CommandRunMode.Embedded,
-            CommandText = "echo 请编辑命令",
+            CommandText = _localizer.Get("MainWindow_DefaultCommandText"),
             Arguments = new List<string>(),
             EnvironmentVariables = new List<EnvironmentVariableEntry>(),
             SortOrder = commands.Count,
@@ -134,14 +136,14 @@ public sealed class FastCliAppService : IFastCliAppService
     public async Task<CommandProfile> DuplicateCommandAsync(Guid commandId, CancellationToken cancellationToken = default)
     {
         var source = await _repository.GetCommandAsync(commandId, cancellationToken)
-            ?? throw new InvalidOperationException("未找到要复制的命令。");
+            ?? throw new InvalidOperationException(_localizer.Get("Service_CommandNotFoundForCopy"));
         var siblings = await _repository.GetCommandsByGroupAsync(source.GroupId, cancellationToken);
         var now = DateTimeOffset.Now;
 
         var clone = new CommandProfile
         {
             GroupId = source.GroupId,
-            Name = $"{source.Name} 副本",
+            Name = _localizer.Format("Service_DuplicatedCommandName", source.Name),
             Description = source.Description,
             WorkingDirectory = source.WorkingDirectory,
             ShellType = source.ShellType,
@@ -192,7 +194,7 @@ public sealed class FastCliAppService : IFastCliAppService
         CancellationToken cancellationToken = default)
     {
         var profile = await _repository.GetCommandAsync(commandId, cancellationToken)
-            ?? throw new InvalidOperationException("未找到要执行的命令。");
+            ?? throw new InvalidOperationException(_localizer.Get("Service_CommandNotFoundForRun"));
 
         ValidateCommandProfile(profile);
         var request = ToExecutionRequest(profile);
@@ -234,12 +236,12 @@ public sealed class FastCliAppService : IFastCliAppService
             RunMode = profile.RunMode,
             Status = ExecutionStatus.Running,
             StartedAt = DateTimeOffset.Now,
-            Summary = "命令正在执行。",
+            Summary = _localizer.Get("Service_CommandRunning"),
             OutputText = string.Empty
         };
 
         var logBuilder = new StringBuilder();
-        AppendTranscriptLine(logBuilder, TerminalLogKind.System, FormatSystemLogText($"开始执行：{profile.Name}"));
+        AppendTranscriptLine(logBuilder, TerminalLogKind.System, FormatSystemLogText(_localizer.Format("MainWindow_StatusCommandStarted", profile.Name)));
         runningRecord.OutputText = logBuilder.ToString();
 
         await _repository.SaveExecutionRecordAsync(runningRecord, cancellationToken);
@@ -313,11 +315,11 @@ public sealed class FastCliAppService : IFastCliAppService
             completion = new CommandCompletionResult
             {
                 Status = ExecutionStatus.Failure,
-                Summary = $"执行过程中发生异常：{ex.Message}"
+                Summary = _localizer.Format("Service_DuringExecutionException", ex.Message)
             };
             record.Status = ExecutionStatus.Failure;
             record.EndedAt = DateTimeOffset.Now;
-            record.Summary = $"执行过程中发生异常：{ex.Message}";
+            record.Summary = _localizer.Format("Service_DuringExecutionException", ex.Message);
 
             lock (logLock)
             {
@@ -364,23 +366,23 @@ public sealed class FastCliAppService : IFastCliAppService
         };
     }
 
-    private static void ValidateCommandProfile(CommandProfile profile)
+    private void ValidateCommandProfile(CommandProfile profile)
     {
-        RequireName(profile.Name, "命令名称不能为空。");
+        RequireName(profile.Name, _localizer.Get("Service_CommandNameRequired"));
 
         if (string.IsNullOrWhiteSpace(profile.CommandText))
         {
-            throw new InvalidOperationException("命令内容不能为空。");
+            throw new InvalidOperationException(_localizer.Get("Service_CommandContentRequired"));
         }
 
         if (!string.IsNullOrWhiteSpace(profile.WorkingDirectory) && !Directory.Exists(profile.WorkingDirectory))
         {
-            throw new InvalidOperationException("工作目录不存在。");
+            throw new InvalidOperationException(_localizer.Get("Service_WorkingDirectoryNotFound"));
         }
 
         if (profile.RunMode == CommandRunMode.Embedded && profile.RunAsAdministrator)
         {
-            throw new InvalidOperationException("V1 暂不支持在应用内以管理员权限执行命令，请改用外部终端模式。");
+            throw new InvalidOperationException(_localizer.Get("Service_EmbeddedAdminNotSupported"));
         }
     }
 

@@ -1,7 +1,8 @@
 <Window x:Class="FastCli.Desktop.Views.TextPromptWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="输入"
+        xmlns:loc="clr-namespace:FastCli.Desktop.Localization"
+        Title="{loc:Loc TextPrompt_TitleDefault}"
         Width="420"
         SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
@@ -25,8 +26,8 @@
                  Padding="8,6" />
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Margin="0,0,8,0" Padding="12,6" Click="CancelButton_Click">取消</Button>
-            <Button Padding="12,6" IsDefault="True" Click="OkButton_Click">确定</Button>
+            <Button Margin="0,0,8,0" Padding="12,6" Click="CancelButton_Click" Content="{loc:Loc Common_Cancel}" />
+            <Button Padding="12,6" IsDefault="True" Click="OkButton_Click" Content="{loc:Loc Common_Confirm}" />
         </StackPanel>
     </Grid>
 </Window>

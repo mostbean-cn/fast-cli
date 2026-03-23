@@ -7,6 +7,13 @@ namespace FastCli.Infrastructure.Execution;
 
 public sealed class ProcessCommandExecutor : ICommandExecutor
 {
+    private readonly IAppLocalizer _localizer;
+
+    public ProcessCommandExecutor(IAppLocalizer localizer)
+    {
+        _localizer = localizer;
+    }
+
     public CommandDisplayInfo BuildDisplayInfo(CommandExecutionRequest request)
     {
         return ShellCommandFactory.BuildDisplayInfo(request);
@@ -17,7 +24,7 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
         Action<CommandOutputLine> onOutput,
         CancellationToken cancellationToken = default)
     {
-        var startInfo = ShellCommandFactory.CreateEmbeddedStartInfo(request);
+        var startInfo = ShellCommandFactory.CreateEmbeddedStartInfo(request, _localizer);
         var process = new Process
         {
             StartInfo = startInfo,
@@ -55,7 +62,7 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
 
         if (!process.Start())
         {
-            throw new InvalidOperationException("命令启动失败。");
+            throw new InvalidOperationException(_localizer.Get("Service_CommandStartFailed"));
         }
 
         process.BeginOutputReadLine();
@@ -99,18 +106,18 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var startInfo = ShellCommandFactory.CreateExternalStartInfo(request);
+        var startInfo = ShellCommandFactory.CreateExternalStartInfo(request, _localizer);
         var process = Process.Start(startInfo);
 
         if (process is null)
         {
-            throw new InvalidOperationException("外部终端启动失败。");
+            throw new InvalidOperationException(_localizer.Get("Service_ExternalTerminalStartFailed"));
         }
 
         return Task.FromResult(new CommandCompletionResult
         {
             Status = ExecutionStatus.Success,
-            Summary = $"已在外部终端启动：{request.Name}"
+            Summary = _localizer.Format("Service_ExternalTerminalStarted", request.Name)
         });
     }
 
@@ -134,7 +141,7 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
         }
     }
 
-    private static CommandCompletionResult CreateEmbeddedResult(int exitCode, bool canceled)
+    private CommandCompletionResult CreateEmbeddedResult(int exitCode, bool canceled)
     {
         if (canceled)
         {
@@ -142,7 +149,7 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
             {
                 Status = ExecutionStatus.Canceled,
                 ExitCode = exitCode,
-                Summary = "命令已取消。"
+                Summary = _localizer.Get("Service_CommandWasCanceled")
             };
         }
 
@@ -152,7 +159,7 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
             {
                 Status = ExecutionStatus.Success,
                 ExitCode = exitCode,
-                Summary = "命令执行成功。"
+                Summary = _localizer.Get("Service_CommandSucceeded")
             };
         }
 
@@ -160,7 +167,7 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
         {
             Status = ExecutionStatus.Failure,
             ExitCode = exitCode,
-            Summary = $"命令执行失败，退出码：{exitCode}"
+            Summary = _localizer.Format("Service_CommandFailedWithExitCode", exitCode)
         };
     }
 }

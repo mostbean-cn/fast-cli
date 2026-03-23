@@ -14,10 +14,12 @@ public sealed class SqliteFastCliRepository : IFastCliRepository
     };
 
     private readonly SqliteDatabaseInitializer _databaseInitializer;
+    private readonly IAppLocalizer _localizer;
 
-    public SqliteFastCliRepository(SqliteDatabaseInitializer databaseInitializer)
+    public SqliteFastCliRepository(SqliteDatabaseInitializer databaseInitializer, IAppLocalizer localizer)
     {
         _databaseInitializer = databaseInitializer;
+        _localizer = localizer;
     }
 
     public async Task<IReadOnlyList<CommandGroup>> GetGroupsAsync(CancellationToken cancellationToken = default)
@@ -307,7 +309,7 @@ public sealed class SqliteFastCliRepository : IFastCliRepository
 
         if (!sourceGroupId.HasValue)
         {
-            throw new InvalidOperationException("未找到要移动的命令。");
+            throw new InvalidOperationException(_localizer.Get("Service_CommandNotFoundForMove"));
         }
 
         var sourceIds = await GetOrderedCommandIdsAsync(connection, transaction, sourceGroupId.Value, cancellationToken);
