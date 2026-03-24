@@ -37,7 +37,14 @@ public partial class App : System.Windows.Application
         var appService = new FastCliAppService(repository, commandExecutor, localizer);
         var selectionStateStore = new SelectionStateStore(selectionStatePath);
         var updateStateStore = new UpdateStateStore(updateStatePath);
-        var updateService = new GitHubReleaseUpdateService(updateStateStore, updateDownloadDirectory, localizer);
+        var dialogService = new WpfAppDialogService();
+        var dialogOptionsFactory = new AppDialogOptionsFactory(localizer);
+        var updateService = new GitHubReleaseUpdateService(
+            updateStateStore,
+            updateDownloadDirectory,
+            localizer,
+            dialogService,
+            dialogOptionsFactory);
         var viewModel = new MainWindowViewModel(appService, selectionStateStore, localizer);
 
         var window = new MainWindow(viewModel, updateService);

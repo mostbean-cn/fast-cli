@@ -1,6 +1,16 @@
 (function () {
   const root = document.getElementById('terminal-root');
+  const applyThemeVariables = theme => {
+    const styles = document.documentElement.style;
+    styles.setProperty('--terminal-bg', theme.background);
+    styles.setProperty('--terminal-fg', theme.foreground);
+    styles.setProperty('--terminal-selection', theme.selectionBackground);
+    styles.setProperty(
+      '--terminal-scrollbar-thumb',
+      theme.background.toLowerCase() === '#ffffff' ? 'rgba(107, 114, 128, 0.35)' : 'rgba(148, 163, 184, 0.45)');
+  };
   const fitAddon = new FitAddon.FitAddon();
+  let fitTimer = 0;
   const terminal = new Terminal({
     allowTransparency: false,
     convertEol: false,
@@ -26,12 +36,48 @@
     }
   };
 
+  const syncInputElements = () => {
+    const core = terminal && terminal._core;
+    if (!core) {
+      return;
+    }
+
+    try {
+      if (typeof core._syncTextArea === 'function') {
+        core._syncTextArea();
+      }
+
+      if (core._compositionHelper && typeof core._compositionHelper.updateCompositionElements === 'function') {
+        core._compositionHelper.updateCompositionElements();
+      }
+    } catch {
+    }
+  };
+
+  const isViewportNearBottom = () => {
+    const buffer = terminal && terminal.buffer && terminal.buffer.active;
+    if (!buffer) {
+      return true;
+    }
+
+    return Math.abs(buffer.baseY - buffer.viewportY) <= 1;
+  };
+
+  const keepViewportAtBottom = shouldStickBottom => {
+    if (shouldStickBottom) {
+      terminal.scrollToBottom();
+    }
+  };
+
   const fit = () => {
     if (!root || root.clientWidth === 0 || root.clientHeight === 0) {
       return;
     }
 
+    const shouldStickBottom = isViewportNearBottom();
     fitAddon.fit();
+    keepViewportAtBottom(shouldStickBottom);
+    syncInputElements();
   };
 
   const fitDeferred = () => {
@@ -43,8 +89,20 @@
     });
   };
 
+  const scheduleFit = delay => {
+    if (fitTimer) {
+      window.clearTimeout(fitTimer);
+    }
+
+    fitTimer = window.setTimeout(() => {
+      fitTimer = 0;
+      fitDeferred();
+    }, delay);
+  };
+
   terminal.loadAddon(fitAddon);
   terminal.open(root);
+  applyThemeVariables(terminal.options.theme);
   fitDeferred();
   terminal.focus();
   terminal.writeln('FastCli terminal ready. Run an embedded command to start an interactive shell.');
@@ -53,17 +111,54 @@
     postMessage({ type: 'input', data });
   });
 
+  terminal.onCursorMove(() => {
+    window.requestAnimationFrame(syncInputElements);
+  });
+
   terminal.onResize(size => {
     postMessage({ type: 'resize', cols: size.cols, rows: size.rows });
+    window.requestAnimationFrame(syncInputElements);
   });
 
   new ResizeObserver(() => {
-    fitDeferred();
+    scheduleFit(16);
   }).observe(root);
+
+  window.addEventListener('resize', () => {
+    scheduleFit(60);
+  });
+
+  window.addEventListener('focus', () => {
+    scheduleFit(0);
+    window.requestAnimationFrame(syncInputElements);
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      scheduleFit(0);
+      window.requestAnimationFrame(syncInputElements);
+    }
+  });
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => {
+      scheduleFit(0);
+    }).catch(() => {
+    });
+  }
+
+  if (terminal.textarea) {
+    ['focus', 'blur', 'input', 'compositionstart', 'compositionupdate', 'compositionend', 'keyup'].forEach(eventName => {
+      terminal.textarea.addEventListener(eventName, () => {
+        window.requestAnimationFrame(syncInputElements);
+      });
+    });
+  }
 
   window.fastCliTerminal = {
     focus() {
       terminal.focus();
+      syncInputElements();
     },
     write(data) {
       if (typeof data === 'string' && data.length > 0) {
@@ -71,15 +166,19 @@
       }
     },
     syncViewport() {
+      const shouldStickBottom = isViewportNearBottom();
       const refresh = () => {
         fit();
+        keepViewportAtBottom(shouldStickBottom);
         terminal.refresh(0, Math.max(terminal.rows - 1, 0));
+        syncInputElements();
       };
 
-      fitDeferred();
+      scheduleFit(0);
       window.setTimeout(refresh, 24);
       window.setTimeout(refresh, 72);
       window.setTimeout(refresh, 144);
+      window.setTimeout(refresh, 260);
     },
     replace(data) {
       terminal.reset();
@@ -117,6 +216,7 @@
         brightWhite: theme.brightWhite
       };
 
+      applyThemeVariables(terminal.options.theme);
       document.body.style.background = theme.background;
       document.body.style.color = theme.foreground;
       window.fastCliTerminal.syncViewport();

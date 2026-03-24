@@ -13,6 +13,7 @@ using FastCli.Desktop.ViewModels;
 using FastCli.Domain.Enums;
 using FastCli.Desktop.Views;
 using FastCli.Domain.Models;
+using System.Windows.Threading;
 
 namespace FastCli.Desktop;
 
@@ -22,7 +23,9 @@ public partial class MainWindow : Window
     private Point _commandDragStartPoint;
     private readonly GitHubReleaseUpdateService _updateService;
     private readonly TerminalWebViewHost _terminalHost;
+    private readonly DispatcherTimer _terminalViewportSyncTimer;
     private SettingsView? _settingsView;
+    private TerminalPanelLayoutPreset? _terminalRestoreLayout;
 
     public MainWindow(MainWindowViewModel viewModel, GitHubReleaseUpdateService updateService)
     {
@@ -33,6 +36,15 @@ public partial class MainWindow : Window
         _terminalHost = new TerminalWebViewHost(
             TerminalWebView,
             Path.Combine(AppContext.BaseDirectory, "TerminalWeb"));
+        _terminalViewportSyncTimer = new DispatcherTimer(
+            TimeSpan.FromMilliseconds(90),
+            DispatcherPriority.Background,
+            TerminalViewportSyncTimer_Tick,
+            Dispatcher);
+        Activated += MainWindow_Activated;
+        SizeChanged += MainWindow_SizeChanged;
+        StateChanged += MainWindow_StateChanged;
+        TerminalWebView.SizeChanged += TerminalWebView_SizeChanged;
         ViewModel.TerminalOutputAppended += ViewModel_TerminalOutputAppended;
         ViewModel.TerminalOutputReplaced += ViewModel_TerminalOutputReplaced;
         ViewModel.PropertyChanged += ViewModel_PropertyChanged;
@@ -42,7 +54,7 @@ public partial class MainWindow : Window
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        ApplyTerminalPanelLayout(ViewModel.IsTerminalPanelVisible);
+        ApplyTerminalPanelLayout(ViewModel.IsTerminalPanelVisible, ViewModel.IsTerminalMaximized);
         await InitializeTerminalAsync();
         await ViewModel.LoadAsync();
         await _terminalHost.ReplaceAsync(ViewModel.CurrentTerminalRawText);
@@ -394,12 +406,12 @@ public partial class MainWindow : Window
 
     private async void OpenTerminalShellMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not FrameworkElement { Tag: string shellTag }
-            || !Enum.TryParse<ShellType>(shellTag, ignoreCase: true, out var shellType))
+        if (sender is not FrameworkElement { DataContext: OptionItem<ShellType> shellOption })
         {
             return;
         }
 
+        var shellType = shellOption.Value;
         await ViewModel.OpenTerminalAsync(shellType);
         await EnsureTerminalViewportReadyAsync();
         await _terminalHost.FocusAsync();
@@ -408,7 +420,18 @@ public partial class MainWindow : Window
     private async void CloseTerminalPanelButton_Click(object sender, RoutedEventArgs e)
     {
         await ViewModel.CloseTerminalPanelAsync();
-        ApplyTerminalPanelLayout(ViewModel.IsTerminalPanelVisible);
+    }
+
+    private async void ToggleTerminalMaximizeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.IsTerminalPanelVisible && !ViewModel.IsTerminalMaximized)
+        {
+            _terminalRestoreLayout = CaptureCurrentTerminalPanelLayout();
+        }
+
+        ViewModel.ToggleTerminalMaximize();
+        await EnsureTerminalViewportReadyAsync();
+        await _terminalHost.FocusAsync();
     }
 
     private void ShowSettingsPage()
@@ -472,14 +495,15 @@ public partial class MainWindow : Window
 
     private async void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MainWindowViewModel.IsTerminalPanelVisible) && ViewModel.IsTerminalPanelVisible)
+        if (e.PropertyName == nameof(MainWindowViewModel.IsTerminalPanelVisible)
+            || e.PropertyName == nameof(MainWindowViewModel.IsTerminalMaximized))
         {
-            ApplyTerminalPanelLayout(isTerminalVisible: true);
-            await EnsureTerminalViewportReadyAsync();
-        }
-        else if (e.PropertyName == nameof(MainWindowViewModel.IsTerminalPanelVisible))
-        {
-            ApplyTerminalPanelLayout(isTerminalVisible: false);
+            ApplyTerminalPanelLayout(ViewModel.IsTerminalPanelVisible, ViewModel.IsTerminalMaximized);
+
+            if (ViewModel.IsTerminalPanelVisible)
+            {
+                await EnsureTerminalViewportReadyAsync();
+            }
         }
     }
 
@@ -528,14 +552,78 @@ public partial class MainWindow : Window
         await _terminalHost.SyncViewportAsync();
     }
 
-    private void ApplyTerminalPanelLayout(bool isTerminalVisible)
+    private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        var preset = isTerminalVisible
-            ? TerminalPanelLayoutPreset.Open
-            : TerminalPanelLayoutPreset.Closed;
+        if (!e.WidthChanged && !e.HeightChanged)
+        {
+            return;
+        }
+
+        ScheduleTerminalViewportSync();
+    }
+
+    private void MainWindow_StateChanged(object? sender, EventArgs e)
+    {
+        ScheduleTerminalViewportSync();
+    }
+
+    private void MainWindow_Activated(object? sender, EventArgs e)
+    {
+        ScheduleTerminalViewportSync();
+    }
+
+    private void TerminalWebView_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!e.WidthChanged && !e.HeightChanged)
+        {
+            return;
+        }
+
+        ScheduleTerminalViewportSync();
+    }
+
+    private void ScheduleTerminalViewportSync()
+    {
+        if (!IsLoaded || !ViewModel.IsTerminalPanelVisible)
+        {
+            return;
+        }
+
+        _terminalViewportSyncTimer.Stop();
+        _terminalViewportSyncTimer.Start();
+    }
+
+    private async void TerminalViewportSyncTimer_Tick(object? sender, EventArgs e)
+    {
+        _terminalViewportSyncTimer.Stop();
+        await EnsureTerminalViewportReadyAsync();
+    }
+
+    private TerminalPanelLayoutPreset CaptureCurrentTerminalPanelLayout()
+    {
+        return new TerminalPanelLayoutPreset(
+            EditorRowDefinition.Height,
+            TerminalSplitterRowDefinition.Height,
+            TerminalPanelRowDefinition.Height);
+    }
+
+    private void ApplyTerminalPanelLayout(bool isTerminalVisible, bool isTerminalMaximized)
+    {
+        var preset = isTerminalVisible switch
+        {
+            false => TerminalPanelLayoutPreset.Closed,
+            true when isTerminalMaximized => TerminalPanelLayoutPreset.Maximized,
+            _ when _terminalRestoreLayout.HasValue => _terminalRestoreLayout.Value,
+            _ => TerminalPanelLayoutPreset.Open
+        };
 
         EditorRowDefinition.Height = preset.EditorRowHeight;
         TerminalSplitterRowDefinition.Height = preset.SplitterRowHeight;
         TerminalPanelRowDefinition.Height = preset.TerminalRowHeight;
+
+        if (!isTerminalVisible || !isTerminalMaximized)
+        {
+            _terminalRestoreLayout = null;
+        }
     }
 }

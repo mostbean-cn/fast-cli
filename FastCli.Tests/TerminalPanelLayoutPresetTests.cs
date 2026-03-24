@@ -21,8 +21,8 @@ public sealed class TerminalPanelLayoutPresetTests
     {
         var preset = TerminalPanelLayoutPreset.Open;
 
-        Assert.Equal(new GridLength(7, GridUnitType.Star), preset.EditorRowHeight);
+        Assert.Equal(new GridLength(1, GridUnitType.Star), preset.EditorRowHeight);
         Assert.Equal(new GridLength(8), preset.SplitterRowHeight);
-        Assert.Equal(new GridLength(3, GridUnitType.Star), preset.TerminalRowHeight);
+        Assert.Equal(new GridLength(260), preset.TerminalRowHeight);
     }
 }

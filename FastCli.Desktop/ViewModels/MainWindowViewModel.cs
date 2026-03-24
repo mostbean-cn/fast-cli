@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text;
 using System.Windows;
+using System.Windows.Threading;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
 using FastCli.Application.Utilities;
@@ -36,6 +37,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private Dictionary<Guid, IReadOnlyList<CommandProfile>> _commandsByGroup = new();
     private CommandSession? _runningSession;
     private bool _isTerminalPanelVisible;
+    private bool _isTerminalMaximized;
     private string _terminalSessionLabel = string.Empty;
     private string _terminalSessionStatus = string.Empty;
     private string _terminalInputStatus = string.Empty;
@@ -47,7 +49,6 @@ public sealed class MainWindowViewModel : ObservableObject
     private bool _canSendTerminalInput;
     private bool _suppressPreviewRefresh;
     private bool _suppressSelectionPersistence;
-    private bool _suppressHistoryRestore;
 
     private CommandGroup? _selectedGroup;
     private CommandProfile? _selectedCommand;
@@ -121,6 +122,12 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(CanEditCommand));
                 OnPropertyChanged(nameof(CanRunCommand));
+                if (!IsExecutionRunning)
+                {
+                    ClearTerminalOutput();
+                    SetTerminalStatusReady();
+                }
+
                 LoadEditorFromSelectedCommand();
                 _ = LoadExecutionHistoryAsync(value?.Id);
                 PersistSelectionStateIfNeeded();
@@ -131,13 +138,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public ExecutionRecord? SelectedHistoryRecord
     {
         get => _selectedHistoryRecord;
-        set
-        {
-            if (SetProperty(ref _selectedHistoryRecord, value) && !_isExecutionRunning && !_suppressHistoryRestore)
-            {
-                SetTerminalOutput(value?.OutputText);
-            }
-        }
+        set => SetProperty(ref _selectedHistoryRecord, value);
     }
 
     public string EditedName
@@ -259,7 +260,27 @@ public sealed class MainWindowViewModel : ObservableObject
     public bool IsTerminalPanelVisible
     {
         get => _isTerminalPanelVisible;
-        private set => SetProperty(ref _isTerminalPanelVisible, value);
+        private set
+        {
+            if (SetProperty(ref _isTerminalPanelVisible, value))
+            {
+                OnPropertyChanged(nameof(CanToggleTerminalMaximize));
+            }
+        }
+    }
+
+    public bool IsTerminalMaximized
+    {
+        get => _isTerminalMaximized;
+        private set
+        {
+            if (SetProperty(ref _isTerminalMaximized, value))
+            {
+                OnPropertyChanged(nameof(TerminalMaximizeButtonText));
+                OnPropertyChanged(nameof(TerminalMaximizeGlyph));
+                OnPropertyChanged(nameof(TerminalMaximizeToolTip));
+            }
+        }
     }
 
     public string TerminalSessionLabel
@@ -290,6 +311,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(CanRunCommand));
                 OnPropertyChanged(nameof(CanStopCommand));
                 OnPropertyChanged(nameof(CanOpenTerminal));
+                OnPropertyChanged(nameof(CanClearTerminalOutput));
             }
         }
     }
@@ -322,11 +344,27 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public bool CanOpenTerminal => !IsExecutionRunning;
 
+    public bool CanToggleTerminalMaximize => IsTerminalPanelVisible;
+
     public bool CanSendTerminalInput
     {
         get => _canSendTerminalInput;
         private set => SetProperty(ref _canSendTerminalInput, value);
     }
+
+    public bool CanClearTerminalOutput => !IsExecutionRunning && !string.IsNullOrEmpty(CurrentTerminalRawText);
+
+    public string TerminalMaximizeButtonText => _localization.Get(
+        IsTerminalMaximized
+            ? "MainWindow_TerminalRestore"
+            : "MainWindow_TerminalMaximize");
+
+    public string TerminalMaximizeGlyph => IsTerminalMaximized ? "\uE923" : "\uE740";
+
+    public string TerminalMaximizeToolTip => _localization.Get(
+        IsTerminalMaximized
+            ? "MainWindow_TerminalRestoreTooltip"
+            : "MainWindow_TerminalMaximizeTooltip");
 
     private static readonly IReadOnlyList<OptionItem<ShellType>> TerminalShellTypeOptions =
     [
@@ -376,7 +414,6 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        _suppressHistoryRestore = true;
         ShowTerminalPanel();
         ClearTerminalOutput();
         SelectedHistoryRecord = null;
@@ -385,7 +422,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             var session = await _appService.StartTerminalAsync(
                 shellType,
-                line => System.Windows.Application.Current.Dispatcher.Invoke(() => AppendTerminalOutput(line.Text)));
+                line => GetUiDispatcher().Invoke(() => AppendTerminalOutput(line.Text)));
 
             ConfigureActiveTerminalSession(session, shellType, isCommandExecution: false, nameOverride: null);
             SetStatusMessage("MainWindow_TerminalOpened", GetShellDisplayLabel(shellType));
@@ -393,7 +430,6 @@ public sealed class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _suppressHistoryRestore = false;
             HideTerminalPanel(clearOutput: false);
             SetTerminalStatusReady();
             SetStatusMessage("MainWindow_ExecutionFailed", ex.Message);
@@ -416,9 +452,18 @@ public sealed class MainWindowViewModel : ObservableObject
             }
         }
 
-        _suppressHistoryRestore = false;
         ClearActiveSessionState(resetSessionLabel: true);
         HideTerminalPanel(clearOutput: true);
+    }
+
+    public void ToggleTerminalMaximize()
+    {
+        if (!IsTerminalPanelVisible)
+        {
+            return;
+        }
+
+        IsTerminalMaximized = !IsTerminalMaximized;
     }
 
     public async Task LoadAsync()
@@ -547,7 +592,6 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        _suppressHistoryRestore = true;
         ShowTerminalPanel();
         ClearTerminalOutput();
         SelectedHistoryRecord = null;
@@ -565,12 +609,11 @@ public sealed class MainWindowViewModel : ObservableObject
 
             var result = await _appService.StartCommandAsync(
                 SelectedCommand.Id,
-                line => System.Windows.Application.Current.Dispatcher.Invoke(() => AppendTerminalOutput(line.Text)));
+                line => GetUiDispatcher().Invoke(() => AppendTerminalOutput(line.Text)));
 
             if (result.Session is null)
             {
                 SetStatusMessageRaw(result.Record.Summary);
-                _suppressHistoryRestore = false;
                 await LoadExecutionHistoryAsync(result.Profile.Id);
                 return;
             }
@@ -582,7 +625,6 @@ public sealed class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _suppressHistoryRestore = false;
             SetTerminalStatusReady();
             SetStatusMessage("MainWindow_ExecutionFailed", ex.Message);
         }
@@ -660,16 +702,14 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public async Task ClearCurrentLogAsync()
     {
-        var recordToClear = SelectedHistoryRecord;
-        ClearTerminalOutput();
-
-        if (IsExecutionRunning || recordToClear is null)
+        if (IsExecutionRunning)
         {
             return;
         }
 
-        recordToClear.OutputText = string.Empty;
-        await _appService.UpdateExecutionRecordOutputAsync(recordToClear.Id, string.Empty);
+        ClearTerminalOutput();
+        SetTerminalStatusReady();
+        await Task.CompletedTask;
     }
 
     private async Task ReloadWorkspaceAsync(Guid? preferredGroupId = null, Guid? preferredCommandId = null)
@@ -787,10 +827,9 @@ public sealed class MainWindowViewModel : ObservableObject
             var history = await _appService.GetRecentExecutionRecordsAsync(commandId, 20);
             ReplaceCollection(ExecutionHistory, history);
 
-            if (!IsExecutionRunning && !_suppressHistoryRestore)
+            if (!IsExecutionRunning)
             {
                 SelectedHistoryRecord = ExecutionHistory.FirstOrDefault();
-                SetTerminalOutput(SelectedHistoryRecord?.OutputText);
             }
         }
         catch (Exception ex)
@@ -876,7 +915,6 @@ public sealed class MainWindowViewModel : ObservableObject
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 ClearActiveSessionState(resetSessionLabel: false);
-                _suppressHistoryRestore = false;
             });
 
             var loadHistoryOperation = System.Windows.Application.Current.Dispatcher.InvokeAsync(() => LoadExecutionHistoryAsync(commandId));
@@ -910,7 +948,6 @@ public sealed class MainWindowViewModel : ObservableObject
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 ClearActiveSessionState(resetSessionLabel: false);
-                _suppressHistoryRestore = false;
             });
         }
     }
@@ -925,20 +962,8 @@ public sealed class MainWindowViewModel : ObservableObject
         _currentTerminalTranscriptBuilder.Append(text);
         _currentLogBuilder.Append(AnsiEscapeParser.StripAnsi(text));
         CurrentLogText = _currentLogBuilder.ToString();
+        OnPropertyChanged(nameof(CanClearTerminalOutput));
         TerminalOutputAppended?.Invoke(text);
-    }
-
-    private void SetTerminalOutput(string? output)
-    {
-        var terminalText = NormalizeStoredOutput(output);
-        var plainText = AnsiEscapeParser.StripAnsi(terminalText);
-
-        _currentTerminalTranscriptBuilder.Clear();
-        _currentTerminalTranscriptBuilder.Append(terminalText);
-        _currentLogBuilder.Clear();
-        _currentLogBuilder.Append(plainText);
-        CurrentLogText = plainText;
-        TerminalOutputReplaced?.Invoke(terminalText);
     }
 
     private void ClearTerminalOutput()
@@ -946,29 +971,8 @@ public sealed class MainWindowViewModel : ObservableObject
         _currentTerminalTranscriptBuilder.Clear();
         _currentLogBuilder.Clear();
         CurrentLogText = string.Empty;
+        OnPropertyChanged(nameof(CanClearTerminalOutput));
         TerminalOutputReplaced?.Invoke(string.Empty);
-    }
-
-    private static string NormalizeStoredOutput(string? output)
-    {
-        if (string.IsNullOrEmpty(output))
-        {
-            return string.Empty;
-        }
-
-        return LooksLikeLegacyTranscript(output)
-            ? TerminalTranscriptCodec.ToDisplayText(output)
-            : output;
-    }
-
-    private static bool LooksLikeLegacyTranscript(string output)
-    {
-        return output.StartsWith("[OUT] ", StringComparison.Ordinal)
-               || output.StartsWith("[ERR] ", StringComparison.Ordinal)
-               || output.StartsWith("[SYS] ", StringComparison.Ordinal)
-               || output.Contains($"{Environment.NewLine}[OUT] ", StringComparison.Ordinal)
-               || output.Contains($"{Environment.NewLine}[ERR] ", StringComparison.Ordinal)
-               || output.Contains($"{Environment.NewLine}[SYS] ", StringComparison.Ordinal);
     }
 
     private async Task ExecuteWithStatusAsync(Func<Task> action)
@@ -989,6 +993,8 @@ public sealed class MainWindowViewModel : ObservableObject
         RefreshStatusMessage();
         RefreshPreviewSafe();
         RefreshTerminalStatus();
+        OnPropertyChanged(nameof(TerminalMaximizeButtonText));
+        OnPropertyChanged(nameof(TerminalMaximizeToolTip));
     }
 
     private void UpdateLocalizedOptionLabels()
@@ -998,9 +1004,15 @@ public sealed class MainWindowViewModel : ObservableObject
         ShellTypeOptions[2].Label = _localization.Get("Shell_PwshOption");
         ShellTypeOptions[3].Label = _localization.Get("Shell_DirectOption");
 
-        TerminalShellTypeOptions[0].Label = _localization.Get("Shell_CmdOption");
-        TerminalShellTypeOptions[1].Label = _localization.Get("Shell_PowerShellOption");
-        TerminalShellTypeOptions[2].Label = _localization.Get("Shell_PwshOption");
+        TerminalShellTypeOptions[0].Label = _localization.Get("Shell_CmdDisplay");
+        TerminalShellTypeOptions[0].Description = _localization.Get("Shell_CmdDescription");
+        TerminalShellTypeOptions[0].Meta = "cmd.exe";
+        TerminalShellTypeOptions[1].Label = _localization.Get("Shell_PowerShellDisplay");
+        TerminalShellTypeOptions[1].Description = _localization.Get("Shell_PowerShellDescription");
+        TerminalShellTypeOptions[1].Meta = "powershell.exe";
+        TerminalShellTypeOptions[2].Label = _localization.Get("Shell_PwshDisplay");
+        TerminalShellTypeOptions[2].Description = _localization.Get("Shell_PwshDescription");
+        TerminalShellTypeOptions[2].Meta = "pwsh.exe";
 
         RunModeOptions[0].Label = _localization.Get("RunMode_Embedded");
         RunModeOptions[1].Label = _localization.Get("RunMode_ExternalTerminal");
@@ -1044,6 +1056,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private void HideTerminalPanel(bool clearOutput)
     {
         IsTerminalPanelVisible = false;
+        IsTerminalMaximized = false;
 
         if (clearOutput)
         {
@@ -1194,5 +1207,10 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         orderedIds.Add(sourceId);
+    }
+
+    private static Dispatcher GetUiDispatcher()
+    {
+        return System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
     }
 }

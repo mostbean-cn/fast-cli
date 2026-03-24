@@ -17,8 +17,12 @@ public sealed class MainWindowViewModelTests
         var viewModel = CreateViewModel(new TestAppService());
 
         Assert.False(viewModel.IsTerminalPanelVisible);
+        Assert.False(viewModel.IsTerminalMaximized);
+        Assert.False(viewModel.CanToggleTerminalMaximize);
         Assert.Equal(3, viewModel.AvailableTerminalShellTypes.Count);
         Assert.DoesNotContain(viewModel.AvailableTerminalShellTypes, item => item.Value == ShellType.Direct);
+        Assert.All(viewModel.AvailableTerminalShellTypes, item => Assert.False(string.IsNullOrWhiteSpace(item.Description)));
+        Assert.All(viewModel.AvailableTerminalShellTypes, item => Assert.False(string.IsNullOrWhiteSpace(item.Meta)));
     }
 
     [Fact]
@@ -51,6 +55,67 @@ public sealed class MainWindowViewModelTests
         Assert.True(appService.StopCalled);
     }
 
+    [Fact]
+    public void ToggleTerminalMaximize_WhenPanelHidden_DoesNothing()
+    {
+        var viewModel = CreateViewModel(new TestAppService());
+
+        viewModel.ToggleTerminalMaximize();
+
+        Assert.False(viewModel.IsTerminalMaximized);
+        Assert.False(viewModel.CanToggleTerminalMaximize);
+    }
+
+    [Fact]
+    public async Task OpenTerminalAsync_AllowsMaximizeToggle_AndCloseResetsState()
+    {
+        var viewModel = CreateViewModel(new TestAppService());
+
+        await viewModel.OpenTerminalAsync(ShellType.Cmd);
+        viewModel.ToggleTerminalMaximize();
+
+        Assert.True(viewModel.CanToggleTerminalMaximize);
+        Assert.True(viewModel.IsTerminalMaximized);
+
+        viewModel.ToggleTerminalMaximize();
+        Assert.False(viewModel.IsTerminalMaximized);
+
+        viewModel.ToggleTerminalMaximize();
+        await viewModel.CloseTerminalPanelAsync();
+
+        Assert.False(viewModel.IsTerminalPanelVisible);
+        Assert.False(viewModel.IsTerminalMaximized);
+        Assert.False(viewModel.CanToggleTerminalMaximize);
+    }
+
+    [Fact]
+    public void SelectedHistoryRecord_DoesNotReplayStoredTerminalOutput()
+    {
+        var viewModel = CreateViewModel(new TestAppService());
+
+        viewModel.SelectedHistoryRecord = new ExecutionRecord
+        {
+            OutputText = "stale terminal transcript"
+        };
+
+        Assert.Equal(string.Empty, viewModel.CurrentTerminalRawText);
+    }
+
+    [Fact]
+    public async Task ClearCurrentLogAsync_DoesNotClearActiveTerminalSessionOutput()
+    {
+        var appService = new TestAppService
+        {
+            InitialTerminalOutput = "claude-session> "
+        };
+        var viewModel = CreateViewModel(appService);
+
+        await viewModel.OpenTerminalAsync(ShellType.Cmd);
+        await viewModel.ClearCurrentLogAsync();
+
+        Assert.Equal("claude-session> ", viewModel.CurrentTerminalRawText);
+    }
+
     private static MainWindowViewModel CreateViewModel(IFastCliAppService appService)
     {
         LocalizationManager.Instance.Initialize();
@@ -60,16 +125,22 @@ public sealed class MainWindowViewModelTests
 
     private sealed class TestAppService : IFastCliAppService
     {
-        private readonly CommandSession _terminalSession;
+        private readonly TaskCompletionSource<CommandCompletionResult> _terminalCompletionSource =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public TestAppService()
         {
-            _terminalSession = new CommandSession(
+            TerminalSession = new CommandSession(
                 Guid.NewGuid(),
-                new TaskCompletionSource<CommandCompletionResult>(TaskCreationOptions.RunContinuationsAsynchronously).Task,
+                _terminalCompletionSource.Task,
                 _ =>
                 {
                     StopCalled = true;
+                    _terminalCompletionSource.TrySetResult(new CommandCompletionResult
+                    {
+                        Status = ExecutionStatus.Canceled,
+                        Summary = "stopped"
+                    });
                     return Task.CompletedTask;
                 })
             {
@@ -77,6 +148,10 @@ public sealed class MainWindowViewModelTests
                 ResizeAsync = (_, _, _) => Task.CompletedTask
             };
         }
+
+        public string? InitialTerminalOutput { get; init; }
+
+        public CommandSession TerminalSession { get; }
 
         public ShellType? StartedTerminalShell { get; private set; }
 
@@ -107,7 +182,12 @@ public sealed class MainWindowViewModelTests
         public Task<CommandSession> StartTerminalAsync(ShellType shellType, Action<CommandOutputLine> onOutput, CancellationToken cancellationToken = default)
         {
             StartedTerminalShell = shellType;
-            return Task.FromResult(_terminalSession);
+            if (!string.IsNullOrEmpty(InitialTerminalOutput))
+            {
+                onOutput(new CommandOutputLine { Text = InitialTerminalOutput });
+            }
+
+            return Task.FromResult(TerminalSession);
         }
 
         public Task StopCommandAsync(CommandSession session, CancellationToken cancellationToken = default)

@@ -10,7 +10,7 @@ namespace FastCli.Tests;
 public sealed class FastCliAppServiceTests
 {
     [Fact]
-    public async Task StartCommandAsync_PersistsOnlyTerminalOutputWithoutInjectedSystemLogs()
+    public async Task StartCommandAsync_DoesNotPersistTerminalTranscript()
     {
         var profile = new CommandProfile
         {
@@ -36,9 +36,7 @@ public sealed class FastCliAppServiceTests
 
         var record = Assert.Single(repository.ExecutionRecords);
         Assert.Equal(ExecutionStatus.Success, completion.Status);
-        Assert.Equal("Prompt> done\r\n", record.OutputText);
-        Assert.DoesNotContain("[SYS]", record.OutputText, StringComparison.Ordinal);
-        Assert.DoesNotContain("CommandStarted", record.OutputText, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(string.Empty, record.OutputText);
     }
 
     [Fact]

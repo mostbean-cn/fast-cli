@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Text;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
 using FastCli.Domain.Enums;
@@ -238,19 +237,11 @@ public sealed class FastCliAppService : IFastCliAppService
 
         await _repository.SaveExecutionRecordAsync(runningRecord, cancellationToken);
 
-        var logBuilder = new StringBuilder();
-        var logLock = new object();
-
         void ForwardOutput(CommandOutputLine line)
         {
             if (string.IsNullOrEmpty(line.Text))
             {
                 return;
-            }
-
-            lock (logLock)
-            {
-                logBuilder.Append(line.Text);
             }
 
             onOutput(line);
@@ -266,12 +257,12 @@ public sealed class FastCliAppService : IFastCliAppService
         {
             runningRecord.Status = ExecutionStatus.Failure;
             runningRecord.EndedAt = DateTimeOffset.Now;
-            runningRecord.OutputText = logBuilder.ToString();
+            runningRecord.OutputText = string.Empty;
             await _repository.SaveExecutionRecordAsync(runningRecord, cancellationToken);
             throw;
         }
 
-        var persistedCompletion = PersistExecutionResultAsync(runningRecord, executorSession, logBuilder, logLock);
+        var persistedCompletion = PersistExecutionResultAsync(runningRecord, executorSession);
         var session = new CommandSession(
             executorSession.ExecutionId,
             persistedCompletion,
@@ -327,9 +318,7 @@ public sealed class FastCliAppService : IFastCliAppService
 
     private async Task<CommandCompletionResult> PersistExecutionResultAsync(
         ExecutionRecord record,
-        CommandSession session,
-        StringBuilder logBuilder,
-        object logLock)
+        CommandSession session)
     {
         CommandCompletionResult completion;
 
@@ -340,11 +329,7 @@ public sealed class FastCliAppService : IFastCliAppService
             record.EndedAt = DateTimeOffset.Now;
             record.ExitCode = completion.ExitCode;
             record.Summary = completion.Summary;
-
-            lock (logLock)
-            {
-                record.OutputText = logBuilder.ToString();
-            }
+            record.OutputText = string.Empty;
         }
         catch (Exception ex)
         {
@@ -356,11 +341,7 @@ public sealed class FastCliAppService : IFastCliAppService
             record.Status = ExecutionStatus.Failure;
             record.EndedAt = DateTimeOffset.Now;
             record.Summary = _localizer.Format("Service_DuringExecutionException", ex.Message);
-
-            lock (logLock)
-            {
-                record.OutputText = logBuilder.ToString();
-            }
+            record.OutputText = string.Empty;
         }
 
         await _repository.SaveExecutionRecordAsync(record).ConfigureAwait(false);

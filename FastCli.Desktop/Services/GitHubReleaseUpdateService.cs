@@ -27,12 +27,21 @@ public sealed class GitHubReleaseUpdateService
     private readonly IAppLocalizer _localizer;
     private readonly UpdateStateStore _updateStateStore;
     private readonly string _downloadDirectoryPath;
+    private readonly IAppDialogService _dialogService;
+    private readonly AppDialogOptionsFactory _dialogOptionsFactory;
 
-    public GitHubReleaseUpdateService(UpdateStateStore updateStateStore, string downloadDirectoryPath, IAppLocalizer localizer)
+    public GitHubReleaseUpdateService(
+        UpdateStateStore updateStateStore,
+        string downloadDirectoryPath,
+        IAppLocalizer localizer,
+        IAppDialogService dialogService,
+        AppDialogOptionsFactory dialogOptionsFactory)
     {
         _updateStateStore = updateStateStore;
         _downloadDirectoryPath = downloadDirectoryPath;
         _localizer = localizer;
+        _dialogService = dialogService;
+        _dialogOptionsFactory = dialogOptionsFactory;
     }
 
     public static string GetCurrentVersionText()
@@ -89,12 +98,12 @@ public sealed class GitHubReleaseUpdateService
         {
             if (userInitiated)
             {
-                await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
+                await _dialogService.ShowAsync(
                     owner,
-                    _localizer.Get("Update_CannotFetchLatest"),
-                    _localizer.Get("Update_CheckTitle"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information));
+                    _dialogOptionsFactory.CreateInformation(
+                        _localizer.Get("Update_CheckTitle"),
+                        _localizer.Get("Update_CheckTitle"),
+                        _localizer.Get("Update_CannotFetchLatest")));
             }
 
             return;
@@ -104,12 +113,12 @@ public sealed class GitHubReleaseUpdateService
         {
             if (userInitiated)
             {
-                await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
+                await _dialogService.ShowAsync(
                     owner,
-                    _localizer.Format("Update_AlreadyLatest", currentVersionText),
-                    _localizer.Get("Update_CheckTitle"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information));
+                    _dialogOptionsFactory.CreateInformation(
+                        _localizer.Get("Update_CheckTitle"),
+                        _localizer.Get("Update_CheckTitle"),
+                        _localizer.Format("Update_AlreadyLatest", currentVersionText)));
             }
 
             return;
@@ -122,15 +131,13 @@ public sealed class GitHubReleaseUpdateService
             return;
         }
 
-        var message = BuildUpdatePromptMessage(currentVersionText, latestRelease);
-        var result = await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
-            owner,
-            message,
-            _localizer.Get("Update_NewVersionTitle"),
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Information));
+        var promptOptions = _dialogOptionsFactory.CreateUpdateAvailable(
+            currentVersionText,
+            latestRelease.VersionText,
+            BuildReleaseNotes(latestRelease));
+        var result = await _dialogService.ShowAsync(owner, promptOptions);
 
-        if (result != MessageBoxResult.Yes)
+        if (result != AppDialogResult.Primary)
         {
             state.SkippedVersion = latestRelease.VersionText;
             await _updateStateStore.SaveAsync(state, cancellationToken);
@@ -148,12 +155,12 @@ public sealed class GitHubReleaseUpdateService
         }
         catch (Exception ex)
         {
-            await owner.Dispatcher.InvokeAsync(() => MessageBox.Show(
+            await _dialogService.ShowAsync(
                 owner,
-                _localizer.Format("Update_DownloadFailed", ex.Message),
-                _localizer.Get("Update_FailedTitle"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Error));
+                _dialogOptionsFactory.CreateError(
+                    _localizer.Get("Update_FailedTitle"),
+                    _localizer.Get("Update_FailedTitle"),
+                    _localizer.Format("Update_DownloadFailed", ex.Message)));
         }
     }
 
@@ -234,15 +241,11 @@ public sealed class GitHubReleaseUpdateService
         });
     }
 
-    private string BuildUpdatePromptMessage(string currentVersionText, GitHubReleaseInfo release)
+    private string BuildReleaseNotes(GitHubReleaseInfo release)
     {
-        var releaseNotes = string.IsNullOrWhiteSpace(release.ReleaseNotes)
+        return string.IsNullOrWhiteSpace(release.ReleaseNotes)
             ? _localizer.Get("Update_NoReleaseNotes")
             : TruncateReleaseNotes(release.ReleaseNotes);
-
-        return _localizer
-            .Format("Update_Prompt", currentVersionText, release.VersionText, releaseNotes)
-            .Replace("\n", Environment.NewLine, StringComparison.Ordinal);
     }
 
     private static string TruncateReleaseNotes(string releaseNotes)
