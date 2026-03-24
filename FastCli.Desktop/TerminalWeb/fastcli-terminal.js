@@ -1,16 +1,17 @@
 (function () {
   const root = document.getElementById('terminal-root');
-  const applyThemeVariables = theme => {
-    const styles = document.documentElement.style;
-    styles.setProperty('--terminal-bg', theme.background);
-    styles.setProperty('--terminal-fg', theme.foreground);
-    styles.setProperty('--terminal-selection', theme.selectionBackground);
-    styles.setProperty(
-      '--terminal-scrollbar-thumb',
-      theme.background.toLowerCase() === '#ffffff' ? 'rgba(107, 114, 128, 0.35)' : 'rgba(148, 163, 184, 0.45)');
-  };
   const fitAddon = new FitAddon.FitAddon();
-  let fitTimer = 0;
+  const defaultViewportSyncRequest = {
+    reason: 'manual',
+    requestFocus: false,
+    preserveBottom: true
+  };
+
+  let viewportSyncTimer = 0;
+  let isComposing = false;
+  let hasTerminalFocus = false;
+  let pendingViewportSync = null;
+
   const terminal = new Terminal({
     allowTransparency: false,
     convertEol: false,
@@ -30,27 +31,53 @@
     }
   });
 
+  const applyThemeVariables = theme => {
+    const styles = document.documentElement.style;
+    styles.setProperty('--terminal-bg', theme.background);
+    styles.setProperty('--terminal-fg', theme.foreground);
+    styles.setProperty('--terminal-selection', theme.selectionBackground);
+    styles.setProperty(
+      '--terminal-scrollbar-thumb',
+      theme.background.toLowerCase() === '#ffffff' ? 'rgba(107, 114, 128, 0.35)' : 'rgba(148, 163, 184, 0.45)');
+  };
+
   const postMessage = payload => {
     if (window.chrome && window.chrome.webview) {
       window.chrome.webview.postMessage(payload);
     }
   };
 
-  const syncInputElements = () => {
-    const core = terminal && terminal._core;
-    if (!core) {
+  const normalizeViewportSyncRequest = rawRequest => {
+    if (!rawRequest || typeof rawRequest !== 'object') {
+      return { ...defaultViewportSyncRequest };
+    }
+
+    return {
+      reason: typeof rawRequest.reason === 'string' && rawRequest.reason.length > 0
+        ? rawRequest.reason
+        : defaultViewportSyncRequest.reason,
+      requestFocus: rawRequest.requestFocus === true,
+      preserveBottom: rawRequest.preserveBottom !== false
+    };
+  };
+
+  const mergeViewportSyncRequest = request => {
+    if (!pendingViewportSync) {
+      pendingViewportSync = request;
       return;
     }
 
-    try {
-      if (typeof core._syncTextArea === 'function') {
-        core._syncTextArea();
-      }
+    pendingViewportSync = {
+      reason: request.reason,
+      requestFocus: pendingViewportSync.requestFocus || request.requestFocus,
+      preserveBottom: pendingViewportSync.preserveBottom && request.preserveBottom
+    };
+  };
 
-      if (core._compositionHelper && typeof core._compositionHelper.updateCompositionElements === 'function') {
-        core._compositionHelper.updateCompositionElements();
-      }
-    } catch {
+  const cancelViewportSyncTimer = () => {
+    if (viewportSyncTimer) {
+      window.clearTimeout(viewportSyncTimer);
+      viewportSyncTimer = 0;
     }
   };
 
@@ -63,129 +90,136 @@
     return Math.abs(buffer.baseY - buffer.viewportY) <= 1;
   };
 
-  const keepViewportAtBottom = shouldStickBottom => {
-    if (shouldStickBottom) {
-      terminal.scrollToBottom();
-    }
-  };
-
-  const fit = () => {
+  const executeViewportSync = request => {
     if (!root || root.clientWidth === 0 || root.clientHeight === 0) {
       return;
     }
 
-    const shouldStickBottom = isViewportNearBottom();
+    const shouldStickBottom = request.preserveBottom && isViewportNearBottom();
     fitAddon.fit();
-    keepViewportAtBottom(shouldStickBottom);
-    syncInputElements();
+
+    if (shouldStickBottom) {
+      terminal.scrollToBottom();
+    }
+
+    terminal.refresh(0, Math.max(terminal.rows - 1, 0));
+
+    if (request.requestFocus && !isComposing) {
+      terminal.focus();
+      hasTerminalFocus = true;
+    }
   };
 
-  const fitDeferred = () => {
+  const flushViewportSync = () => {
+    if (isComposing || !pendingViewportSync) {
+      return;
+    }
+
+    const request = pendingViewportSync;
+    pendingViewportSync = null;
+
     window.requestAnimationFrame(() => {
-      fit();
-      window.requestAnimationFrame(() => {
-        fit();
-      });
+      executeViewportSync(request);
     });
   };
 
-  const scheduleFit = delay => {
-    if (fitTimer) {
-      window.clearTimeout(fitTimer);
+  const scheduleViewportSync = (rawRequest, delay) => {
+    mergeViewportSyncRequest(normalizeViewportSyncRequest(rawRequest));
+    cancelViewportSyncTimer();
+
+    if (isComposing) {
+      return;
     }
 
-    fitTimer = window.setTimeout(() => {
-      fitTimer = 0;
-      fitDeferred();
+    viewportSyncTimer = window.setTimeout(() => {
+      viewportSyncTimer = 0;
+      flushViewportSync();
     }, delay);
   };
 
   terminal.loadAddon(fitAddon);
   terminal.open(root);
   applyThemeVariables(terminal.options.theme);
-  fitDeferred();
-  terminal.focus();
   terminal.writeln('FastCli terminal ready. Run an embedded command to start an interactive shell.');
+  scheduleViewportSync({ reason: 'init', requestFocus: false, preserveBottom: true }, 0);
 
   terminal.onData(data => {
     postMessage({ type: 'input', data });
   });
 
-  terminal.onCursorMove(() => {
-    window.requestAnimationFrame(syncInputElements);
-  });
-
   terminal.onResize(size => {
     postMessage({ type: 'resize', cols: size.cols, rows: size.rows });
-    window.requestAnimationFrame(syncInputElements);
   });
 
   new ResizeObserver(() => {
-    scheduleFit(16);
+    scheduleViewportSync({ reason: 'container-resize', requestFocus: false, preserveBottom: true }, 16);
   }).observe(root);
 
   window.addEventListener('resize', () => {
-    scheduleFit(60);
+    scheduleViewportSync({ reason: 'window-resize', requestFocus: false, preserveBottom: true }, 60);
   });
 
   window.addEventListener('focus', () => {
-    scheduleFit(0);
-    window.requestAnimationFrame(syncInputElements);
+    scheduleViewportSync({ reason: 'window-focus', requestFocus: false, preserveBottom: true }, 0);
   });
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      scheduleFit(0);
-      window.requestAnimationFrame(syncInputElements);
+      scheduleViewportSync({ reason: 'visibility-visible', requestFocus: false, preserveBottom: true }, 0);
     }
   });
 
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(() => {
-      scheduleFit(0);
+      scheduleViewportSync({ reason: 'fonts-ready', requestFocus: false, preserveBottom: true }, 0);
     }).catch(() => {
     });
   }
 
   if (terminal.textarea) {
-    ['focus', 'blur', 'input', 'compositionstart', 'compositionupdate', 'compositionend', 'keyup'].forEach(eventName => {
-      terminal.textarea.addEventListener(eventName, () => {
-        window.requestAnimationFrame(syncInputElements);
-      });
+    terminal.textarea.addEventListener('focus', () => {
+      hasTerminalFocus = true;
+      scheduleViewportSync({ reason: 'textarea-focus', requestFocus: false, preserveBottom: true }, 0);
+    });
+
+    terminal.textarea.addEventListener('blur', () => {
+      hasTerminalFocus = false;
+    });
+
+    terminal.textarea.addEventListener('compositionstart', () => {
+      isComposing = true;
+      cancelViewportSyncTimer();
+    });
+
+    terminal.textarea.addEventListener('compositionend', () => {
+      isComposing = false;
+      if (pendingViewportSync) {
+        flushViewportSync();
+      } else if (hasTerminalFocus) {
+        scheduleViewportSync({ reason: 'composition-end', requestFocus: false, preserveBottom: true }, 0);
+      }
     });
   }
 
   window.fastCliTerminal = {
     focus() {
       terminal.focus();
-      syncInputElements();
+      hasTerminalFocus = true;
     },
     write(data) {
       if (typeof data === 'string' && data.length > 0) {
         terminal.write(data);
       }
     },
-    syncViewport() {
-      const shouldStickBottom = isViewportNearBottom();
-      const refresh = () => {
-        fit();
-        keepViewportAtBottom(shouldStickBottom);
-        terminal.refresh(0, Math.max(terminal.rows - 1, 0));
-        syncInputElements();
-      };
-
-      scheduleFit(0);
-      window.setTimeout(refresh, 24);
-      window.setTimeout(refresh, 72);
-      window.setTimeout(refresh, 144);
-      window.setTimeout(refresh, 260);
+    syncViewport(options) {
+      scheduleViewportSync(options, 0);
     },
     replace(data) {
       terminal.reset();
       if (typeof data === 'string' && data.length > 0) {
         terminal.write(data);
       }
-      window.fastCliTerminal.syncViewport();
+      scheduleViewportSync({ reason: 'replace', requestFocus: false, preserveBottom: true }, 0);
     },
     setTheme(theme) {
       if (!theme || typeof theme !== 'object') {
@@ -219,7 +253,7 @@
       applyThemeVariables(terminal.options.theme);
       document.body.style.background = theme.background;
       document.body.style.color = theme.foreground;
-      window.fastCliTerminal.syncViewport();
+      scheduleViewportSync({ reason: 'theme-change', requestFocus: false, preserveBottom: true }, 0);
     }
   };
 

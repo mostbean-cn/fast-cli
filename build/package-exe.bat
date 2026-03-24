@@ -4,7 +4,7 @@ setlocal
 set "REPO_ROOT=%~dp0.."
 for %%I in ("%REPO_ROOT%") do set "REPO_ROOT=%%~fI"
 set "PROJECT=%REPO_ROOT%\FastCli.Desktop\FastCli.Desktop.csproj"
-set "OUTPUT_DIR=%REPO_ROOT%\artifacts\release"
+set "OUTPUT_ROOT=%REPO_ROOT%\artifacts\release"
 
 for /f "tokens=3 delims=<>" %%V in ('findstr /R /C:"^[ ]*<Version>.*</Version>" "%PROJECT%"') do set "VERSION=%%V"
 
@@ -13,11 +13,27 @@ if not defined VERSION (
   exit /b 1
 )
 
-if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
+set "PACKAGE_NAME=FastCli-v%VERSION%-win-x64-portable"
+set "PUBLISH_DIR=%OUTPUT_ROOT%\_publish\%PACKAGE_NAME%"
+set "PACKAGE_DIR=%OUTPUT_ROOT%\%PACKAGE_NAME%"
+set "PACKAGE_ZIP=%OUTPUT_ROOT%\%PACKAGE_NAME%.zip"
 
-echo Publishing self-contained exe...
+if not exist "%OUTPUT_ROOT%" mkdir "%OUTPUT_ROOT%"
+
+call :clean_dir "%PUBLISH_DIR%" || exit /b 1
+call :clean_dir "%PACKAGE_DIR%" || exit /b 1
+
+if exist "%PACKAGE_ZIP%" (
+  del /f /q "%PACKAGE_ZIP%" >nul 2>nul
+  if exist "%PACKAGE_ZIP%" (
+    echo Failed to remove old package: "%PACKAGE_ZIP%"
+    exit /b 1
+  )
+)
+
+echo Publishing self-contained portable app...
 echo Version: %VERSION%
-echo OutputDir: %OUTPUT_DIR%
+echo PublishDir: %PUBLISH_DIR%
 
 dotnet publish "%PROJECT%" ^
   -c Release ^
@@ -28,17 +44,51 @@ dotnet publish "%PROJECT%" ^
   -p:IncludeNativeLibrariesForSelfExtract=true ^
   -p:DebugType=None ^
   -p:DebugSymbols=false ^
-  -o "%OUTPUT_DIR%"
+  -o "%PUBLISH_DIR%"
 
 if errorlevel 1 (
   echo dotnet publish failed.
   exit /b 1
 )
 
-if not exist "%OUTPUT_DIR%\FastCli.exe" (
+if not exist "%PUBLISH_DIR%\FastCli.exe" (
   echo Publish completed but FastCli.exe was not found.
   exit /b 1
 )
 
-echo EXE created: "%OUTPUT_DIR%\FastCli.exe"
+mkdir "%PACKAGE_DIR%" >nul 2>nul
+if errorlevel 1 (
+  echo Failed to create package directory: "%PACKAGE_DIR%"
+  exit /b 1
+)
+
+echo Copying portable package files...
+xcopy "%PUBLISH_DIR%\*" "%PACKAGE_DIR%\" /E /I /Y >nul
+if errorlevel 1 (
+  echo Failed to copy publish output into portable package directory.
+  exit /b 1
+)
+
+echo Creating zip package...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path '%PACKAGE_DIR%' -DestinationPath '%PACKAGE_ZIP%' -Force"
+if errorlevel 1 (
+  echo Failed to create zip package.
+  exit /b 1
+)
+
+echo Portable directory: "%PACKAGE_DIR%"
+echo Portable zip: "%PACKAGE_ZIP%"
+exit /b 0
+
+:clean_dir
+set "TARGET_DIR=%~1"
+if not exist "%TARGET_DIR%" (
+  exit /b 0
+)
+
+rmdir /s /q "%TARGET_DIR%" >nul 2>nul
+if exist "%TARGET_DIR%" (
+  echo Failed to clean directory: "%TARGET_DIR%"
+  exit /b 1
+)
 exit /b 0

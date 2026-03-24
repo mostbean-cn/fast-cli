@@ -85,9 +85,19 @@ public sealed class TerminalWebViewHost
         return ExecuteScriptAsync("window.fastCliTerminal.focus();");
     }
 
-    public Task SyncViewportAsync()
+    public Task SyncViewportAsync(
+        string reason = "manual",
+        bool requestFocus = false,
+        bool preserveBottom = true)
     {
-        return ExecuteScriptAsync("window.fastCliTerminal.syncViewport();");
+        var payload = JsonSerializer.Serialize(new
+        {
+            reason,
+            requestFocus,
+            preserveBottom
+        });
+
+        return ExecuteScriptAsync($"window.fastCliTerminal.syncViewport({payload});");
     }
 
     public Task SetThemeAsync(TerminalTheme theme)

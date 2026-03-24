@@ -153,8 +153,7 @@ public partial class MainWindow : Window
     private async void RunCommandButton_Click(object sender, RoutedEventArgs e)
     {
         await ViewModel.RunSelectedCommandAsync();
-        await EnsureTerminalViewportReadyAsync();
-        await _terminalHost.FocusAsync();
+        await EnsureTerminalViewportReadyAsync("run-command", requestFocus: true);
     }
 
     private async void StopCommandButton_Click(object sender, RoutedEventArgs e)
@@ -198,8 +197,7 @@ public partial class MainWindow : Window
         if (ViewModel.SelectedCommand is not null)
         {
             await ViewModel.RunSelectedCommandAsync();
-            await EnsureTerminalViewportReadyAsync();
-            await _terminalHost.FocusAsync();
+            await EnsureTerminalViewportReadyAsync("command-double-click", requestFocus: true);
         }
     }
 
@@ -212,8 +210,7 @@ public partial class MainWindow : Window
 
         ViewModel.SelectedCommand = command;
         await ViewModel.RunSelectedCommandAsync();
-        await EnsureTerminalViewportReadyAsync();
-        await _terminalHost.FocusAsync();
+        await EnsureTerminalViewportReadyAsync("run-command-from-list", requestFocus: true);
         e.Handled = true;
     }
 
@@ -413,8 +410,7 @@ public partial class MainWindow : Window
 
         var shellType = shellOption.Value;
         await ViewModel.OpenTerminalAsync(shellType);
-        await EnsureTerminalViewportReadyAsync();
-        await _terminalHost.FocusAsync();
+        await EnsureTerminalViewportReadyAsync("open-terminal-shell", requestFocus: true);
     }
 
     private async void CloseTerminalPanelButton_Click(object sender, RoutedEventArgs e)
@@ -430,8 +426,7 @@ public partial class MainWindow : Window
         }
 
         ViewModel.ToggleTerminalMaximize();
-        await EnsureTerminalViewportReadyAsync();
-        await _terminalHost.FocusAsync();
+        await EnsureTerminalViewportReadyAsync("toggle-terminal-maximize");
     }
 
     private void ShowSettingsPage()
@@ -502,7 +497,7 @@ public partial class MainWindow : Window
 
             if (ViewModel.IsTerminalPanelVisible)
             {
-                await EnsureTerminalViewportReadyAsync();
+                await EnsureTerminalViewportReadyAsync("terminal-panel-layout");
             }
         }
     }
@@ -545,11 +540,14 @@ public partial class MainWindow : Window
         return "#000000";
     }
 
-    private async Task EnsureTerminalViewportReadyAsync()
+    private async Task EnsureTerminalViewportReadyAsync(
+        string reason = "manual",
+        bool requestFocus = false,
+        bool preserveBottom = true)
     {
         await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
         await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
-        await _terminalHost.SyncViewportAsync();
+        await _terminalHost.SyncViewportAsync(reason, requestFocus, preserveBottom);
     }
 
     private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -596,7 +594,7 @@ public partial class MainWindow : Window
     private async void TerminalViewportSyncTimer_Tick(object? sender, EventArgs e)
     {
         _terminalViewportSyncTimer.Stop();
-        await EnsureTerminalViewportReadyAsync();
+        await EnsureTerminalViewportReadyAsync("window-layout");
     }
 
     private TerminalPanelLayoutPreset CaptureCurrentTerminalPanelLayout()
