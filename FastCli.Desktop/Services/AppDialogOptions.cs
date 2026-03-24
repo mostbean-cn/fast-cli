@@ -41,4 +41,16 @@ public sealed class AppDialogOptions
     public bool HasDetails => !string.IsNullOrWhiteSpace(DetailsTitle) && !string.IsNullOrWhiteSpace(DetailsBody);
 
     public bool HasSecondaryAction => !string.IsNullOrWhiteSpace(SecondaryButtonText);
+
+    public bool HasSupplementaryContent => HasMessage || HasPrimaryMetric || HasDetails;
+
+    public bool IsCompact => !HasSupplementaryContent && !HasSecondaryAction;
+
+    public double PreferredWidth => HasDetails
+        ? 640
+        : HasPrimaryMetric
+            ? 580
+            : HasMessage || HasSecondaryAction
+                ? 500
+                : 430;
 }

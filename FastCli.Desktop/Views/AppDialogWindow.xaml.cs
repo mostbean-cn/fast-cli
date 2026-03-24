@@ -12,6 +12,7 @@ public partial class AppDialogWindow : Window
         InitializeComponent();
         Options = options;
         DataContext = options;
+        Width = options.PreferredWidth;
         DetailsRichTextBox.Document = MarkdownFlowDocumentBuilder.Build(options.DetailsBody);
     }
 

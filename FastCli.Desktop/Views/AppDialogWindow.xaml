@@ -1,9 +1,8 @@
 <Window x:Class="FastCli.Desktop.Views.AppDialogWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:svc="clr-namespace:FastCli.Desktop.Services"
         Title="{Binding Title}"
-        Width="580"
+        Width="500"
         SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
@@ -12,7 +11,8 @@
         AllowsTransparency="True"
         Background="Transparent"
         SnapsToDevicePixels="True"
-        UseLayoutRounding="True">
+        UseLayoutRounding="True"
+        FontFamily="Microsoft YaHei UI, Segoe UI Variable Display, Segoe UI, sans-serif">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
@@ -20,13 +20,14 @@
             <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
         </Style>
 
-        <Style TargetType="Button">
+        <Style x:Key="DialogButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource SecondaryButtonBackgroundBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource SecondaryButtonForegroundBrush}" />
-            <Setter Property="Padding" Value="14,8" />
             <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="Padding" Value="16,9" />
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="MinWidth" Value="88" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -34,9 +35,10 @@
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8"
+                                CornerRadius="10"
                                 Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -54,7 +56,7 @@
             </Setter>
         </Style>
 
-        <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogButtonStyle}">
             <Setter Property="Background" Value="{DynamicResource PrimaryButtonBackgroundBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonForegroundBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonBackgroundBrush}" />
@@ -70,12 +72,14 @@
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="IconButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Style x:Key="IconButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogButtonStyle}">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="Width" Value="32" />
             <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="32" />
+            <Setter Property="MinHeight" Value="32" />
             <Setter Property="Padding" Value="0" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
@@ -86,68 +90,73 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="DialogIconBadgeStyle" TargetType="Border">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="46" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Background" Value="{DynamicResource SelectedItemBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedItemBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style x:Key="DialogIconGlyphStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="21" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
     </Window.Resources>
 
-    <Border Margin="20"
+    <Border Margin="14"
             Background="{DynamicResource PanelBackgroundBrush}"
             BorderBrush="{DynamicResource PanelBorderBrush}"
             BorderThickness="1"
-            CornerRadius="18">
+            CornerRadius="20">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="28" ShadowDepth="0" Opacity="0.18" />
+            <DropShadowEffect BlurRadius="28" ShadowDepth="0" Opacity="0.16" />
         </Border.Effect>
 
-        <Grid Margin="28">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-
+        <StackPanel Margin="24">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Orientation="Horizontal">
-                    <Border Width="52"
-                            Height="52"
-                            Background="{DynamicResource SelectedItemBackgroundBrush}"
-                            BorderBrush="{DynamicResource SelectedItemBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="16"
-                            VerticalAlignment="Top">
-                        <TextBlock Text="{Binding Glyph}"
-                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                   FontSize="24"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource PrimaryTextBrush}" />
-                    </Border>
+                <Border Style="{StaticResource DialogIconBadgeStyle}"
+                        VerticalAlignment="Top">
+                    <TextBlock Text="{Binding Glyph}"
+                               Style="{StaticResource DialogIconGlyphStyle}" />
+                </Border>
 
-                    <StackPanel Margin="16,0,0,0">
-                        <TextBlock Text="{Binding Eyebrow}"
-                                   Visibility="{Binding HasEyebrow, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TertiaryTextBrush}" />
-                        <TextBlock Text="{Binding Headline}"
-                                   Margin="0,4,0,0"
-                                   FontSize="24"
-                                   FontWeight="SemiBold"
-                                   TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Message}"
-                                   Margin="0,10,0,0"
-                                   Visibility="{Binding HasMessage, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                   Foreground="{DynamicResource SecondaryTextBrush}"
-                                   TextWrapping="Wrap" />
-                    </StackPanel>
+                <StackPanel Grid.Column="1"
+                            Margin="14,0,12,0"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Eyebrow}"
+                               Visibility="{Binding HasEyebrow, Converter={StaticResource BooleanToVisibilityConverter}}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TertiaryTextBrush}" />
+                    <TextBlock Text="{Binding Headline}"
+                               Margin="0,2,0,0"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Message}"
+                               Margin="0,8,0,0"
+                               Visibility="{Binding HasMessage, Converter={StaticResource BooleanToVisibilityConverter}}"
+                               Foreground="{DynamicResource SecondaryTextBrush}"
+                               TextWrapping="Wrap"
+                               LineHeight="22" />
                 </StackPanel>
 
-                <Button Grid.Column="1"
+                <Button Grid.Column="2"
                         Click="CloseButton_Click"
-                        Style="{StaticResource IconButtonStyle}">
+                        Style="{StaticResource IconButtonStyle}"
+                        VerticalAlignment="Top">
                     <TextBlock Text="&#xE711;"
                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                FontSize="14"
@@ -156,8 +165,7 @@
                 </Button>
             </Grid>
 
-            <Grid Grid.Row="1"
-                  Margin="0,22,0,0"
+            <Grid Margin="0,18,0,0"
                   Visibility="{Binding HasPrimaryMetric, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -169,14 +177,14 @@
                         BorderBrush="{DynamicResource ControlBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="14"
-                        Padding="16">
+                        Padding="15,14">
                     <StackPanel>
                         <TextBlock Text="{Binding PrimaryMetricLabel}"
                                    FontSize="11"
                                    Foreground="{DynamicResource TertiaryTextBrush}" />
                         <TextBlock Text="{Binding PrimaryMetricValue}"
                                    Margin="0,6,0,0"
-                                   FontSize="18"
+                                   FontSize="17"
                                    FontWeight="SemiBold" />
                     </StackPanel>
                 </Border>
@@ -186,7 +194,7 @@
                         BorderBrush="{DynamicResource ControlBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="14"
-                        Padding="16"
+                        Padding="15,14"
                         Visibility="{Binding HasSecondaryMetric, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel>
                         <TextBlock Text="{Binding SecondaryMetricLabel}"
@@ -194,63 +202,57 @@
                                    Foreground="{DynamicResource TertiaryTextBrush}" />
                         <TextBlock Text="{Binding SecondaryMetricValue}"
                                    Margin="0,6,0,0"
-                                   FontSize="18"
+                                   FontSize="17"
                                    FontWeight="SemiBold" />
                     </StackPanel>
                 </Border>
             </Grid>
 
-            <Grid Grid.Row="2" Margin="0,22,0,0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+            <Border Margin="0,18,0,0"
+                    Background="{DynamicResource ControlBackgroundBrush}"
+                    BorderBrush="{DynamicResource ControlBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="16"
+                    Padding="16"
+                    Visibility="{Binding HasDetails, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                <Border Background="{DynamicResource ControlBackgroundBrush}"
-                        BorderBrush="{DynamicResource ControlBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="14"
-                        Padding="16"
-                        Visibility="{Binding HasDetails, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
+                    <TextBlock Text="{Binding DetailsTitle}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SecondaryTextBrush}" />
 
-                        <TextBlock Text="{Binding DetailsTitle}"
-                                   FontSize="12"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource SecondaryTextBrush}" />
+                    <RichTextBox x:Name="DetailsRichTextBox"
+                                 Grid.Row="1"
+                                 Margin="0,12,0,0"
+                                 MaxHeight="220"
+                                 IsReadOnly="True"
+                                 IsDocumentEnabled="True"
+                                 BorderThickness="0"
+                                 Background="Transparent"
+                                 Foreground="{DynamicResource SecondaryTextBrush}"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Disabled" />
+                </Grid>
+            </Border>
 
-                        <RichTextBox x:Name="DetailsRichTextBox"
-                                     Grid.Row="1"
-                                     Margin="0,12,0,0"
-                                     MaxHeight="220"
-                                     IsReadOnly="True"
-                                     IsDocumentEnabled="True"
-                                     BorderThickness="0"
-                                     Background="Transparent"
-                                     Foreground="{DynamicResource SecondaryTextBrush}"
-                                     VerticalScrollBarVisibility="Auto"
-                                     HorizontalScrollBarVisibility="Disabled" />
-                    </Grid>
-                </Border>
-
-                <StackPanel Grid.Row="1"
-                            Margin="0,22,0,0"
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Right">
-                    <Button Content="{Binding SecondaryButtonText}"
-                            Click="SecondaryButton_Click"
-                            Visibility="{Binding HasSecondaryAction, Converter={StaticResource BooleanToVisibilityConverter}}"
-                            Margin="0,0,10,0" />
-                    <Button Content="{Binding PrimaryButtonText}"
-                            Style="{StaticResource PrimaryButtonStyle}"
-                            IsDefault="True"
-                            Click="PrimaryButton_Click" />
-                </StackPanel>
-            </Grid>
-        </Grid>
+            <StackPanel Margin="0,18,0,0"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button Content="{Binding SecondaryButtonText}"
+                        Click="SecondaryButton_Click"
+                        Visibility="{Binding HasSecondaryAction, Converter={StaticResource BooleanToVisibilityConverter}}"
+                        Style="{StaticResource DialogButtonStyle}"
+                        Margin="0,0,10,0" />
+                <Button Content="{Binding PrimaryButtonText}"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        IsDefault="True"
+                        Click="PrimaryButton_Click" />
+            </StackPanel>
+        </StackPanel>
     </Border>
 </Window>
