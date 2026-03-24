@@ -1,6 +1,6 @@
 #define MyAppName "FastCli"
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.0"
+  #define MyAppVersion "1.0.5"
 #endif
 #define MyAppPublisher "FastCli Project"
 #define MyAppExeName "FastCli.exe"
