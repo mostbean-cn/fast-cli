@@ -2,10 +2,15 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Collections.Specialized;
+using System.IO;
+using System.ComponentModel;
+using FastCli.Application.Utilities;
+using FastCli.Desktop.Layout;
 using FastCli.Desktop.Localization;
 using FastCli.Desktop.Services;
+using FastCli.Desktop.Terminal;
 using FastCli.Desktop.ViewModels;
+using FastCli.Domain.Enums;
 using FastCli.Desktop.Views;
 using FastCli.Domain.Models;
 
@@ -16,6 +21,7 @@ public partial class MainWindow : Window
     private Point _groupDragStartPoint;
     private Point _commandDragStartPoint;
     private readonly GitHubReleaseUpdateService _updateService;
+    private readonly TerminalWebViewHost _terminalHost;
     private SettingsView? _settingsView;
 
     public MainWindow(MainWindowViewModel viewModel, GitHubReleaseUpdateService updateService)
@@ -24,14 +30,22 @@ public partial class MainWindow : Window
         ViewModel = viewModel;
         _updateService = updateService;
         DataContext = viewModel;
-        ViewModel.TerminalLogEntries.CollectionChanged += TerminalLogEntries_CollectionChanged;
+        _terminalHost = new TerminalWebViewHost(
+            TerminalWebView,
+            Path.Combine(AppContext.BaseDirectory, "TerminalWeb"));
+        ViewModel.TerminalOutputAppended += ViewModel_TerminalOutputAppended;
+        ViewModel.TerminalOutputReplaced += ViewModel_TerminalOutputReplaced;
+        ViewModel.PropertyChanged += ViewModel_PropertyChanged;
     }
 
     public MainWindowViewModel ViewModel { get; }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
+        ApplyTerminalPanelLayout(ViewModel.IsTerminalPanelVisible);
+        await InitializeTerminalAsync();
         await ViewModel.LoadAsync();
+        await _terminalHost.ReplaceAsync(ViewModel.CurrentTerminalRawText);
     }
 
     private async void AddGroupButton_Click(object sender, RoutedEventArgs e)
@@ -127,6 +141,8 @@ public partial class MainWindow : Window
     private async void RunCommandButton_Click(object sender, RoutedEventArgs e)
     {
         await ViewModel.RunSelectedCommandAsync();
+        await EnsureTerminalViewportReadyAsync();
+        await _terminalHost.FocusAsync();
     }
 
     private async void StopCommandButton_Click(object sender, RoutedEventArgs e)
@@ -170,6 +186,8 @@ public partial class MainWindow : Window
         if (ViewModel.SelectedCommand is not null)
         {
             await ViewModel.RunSelectedCommandAsync();
+            await EnsureTerminalViewportReadyAsync();
+            await _terminalHost.FocusAsync();
         }
     }
 
@@ -182,6 +200,8 @@ public partial class MainWindow : Window
 
         ViewModel.SelectedCommand = command;
         await ViewModel.RunSelectedCommandAsync();
+        await EnsureTerminalViewportReadyAsync();
+        await _terminalHost.FocusAsync();
         e.Handled = true;
     }
 
@@ -344,9 +364,10 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private void ToggleThemeButton_Click(object sender, RoutedEventArgs e)
+    private async void ToggleThemeButton_Click(object sender, RoutedEventArgs e)
     {
         ViewModel.ToggleTheme();
+        await _terminalHost.SetThemeAsync(CreateTerminalTheme());
     }
 
     private void OpenSettingsButton_Click(object sender, RoutedEventArgs e)
@@ -360,9 +381,34 @@ public partial class MainWindow : Window
         ShowSettingsPage();
     }
 
-    private void TerminalLogEntries_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OpenTerminalButton_Click(object sender, RoutedEventArgs e)
     {
-        Dispatcher.BeginInvoke(() => TerminalLogScrollViewer.ScrollToEnd());
+        if (sender is not Button button || button.ContextMenu is null)
+        {
+            return;
+        }
+
+        button.ContextMenu.PlacementTarget = button;
+        button.ContextMenu.IsOpen = true;
+    }
+
+    private async void OpenTerminalShellMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string shellTag }
+            || !Enum.TryParse<ShellType>(shellTag, ignoreCase: true, out var shellType))
+        {
+            return;
+        }
+
+        await ViewModel.OpenTerminalAsync(shellType);
+        await EnsureTerminalViewportReadyAsync();
+        await _terminalHost.FocusAsync();
+    }
+
+    private async void CloseTerminalPanelButton_Click(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.CloseTerminalPanelAsync();
+        ApplyTerminalPanelLayout(ViewModel.IsTerminalPanelVisible);
     }
 
     private void ShowSettingsPage()
@@ -394,5 +440,102 @@ public partial class MainWindow : Window
     private void SettingsView_BackRequested(object? sender, EventArgs e)
     {
         HideSettingsPage();
+    }
+
+    private async Task InitializeTerminalAsync()
+    {
+        try
+        {
+            await _terminalHost.InitializeAsync(
+                CreateTerminalTheme(),
+                ViewModel.SendTerminalInputAsync,
+                ViewModel.ResizeTerminalAsync);
+            await _terminalHost.ReplaceAsync(ViewModel.CurrentTerminalRawText);
+            TerminalUnavailableOverlay.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception ex)
+        {
+            TerminalUnavailableText.Text = $"{LocalizationManager.Instance.Get("MainWindow_TerminalOutput")}{Environment.NewLine}{AnsiEscapeParser.StripAnsi(ex.Message)}";
+            TerminalUnavailableOverlay.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async void ViewModel_TerminalOutputAppended(string text)
+    {
+        await _terminalHost.WriteAsync(text);
+    }
+
+    private async void ViewModel_TerminalOutputReplaced(string text)
+    {
+        await _terminalHost.ReplaceAsync(text);
+    }
+
+    private async void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainWindowViewModel.IsTerminalPanelVisible) && ViewModel.IsTerminalPanelVisible)
+        {
+            ApplyTerminalPanelLayout(isTerminalVisible: true);
+            await EnsureTerminalViewportReadyAsync();
+        }
+        else if (e.PropertyName == nameof(MainWindowViewModel.IsTerminalPanelVisible))
+        {
+            ApplyTerminalPanelLayout(isTerminalVisible: false);
+        }
+    }
+
+    private TerminalTheme CreateTerminalTheme()
+    {
+        return new TerminalTheme
+        {
+            Background = GetBrushHex("TerminalBackgroundBrush"),
+            Foreground = GetBrushHex("TerminalTextBrush"),
+            Cursor = GetBrushHex("PrimaryButtonBackgroundBrush"),
+            CursorAccent = GetBrushHex("PrimaryButtonForegroundBrush"),
+            SelectionBackground = GetBrushHex("SelectedItemBackgroundBrush"),
+            Black = GetBrushHex("AnsiBlack"),
+            Red = GetBrushHex("AnsiRed"),
+            Green = GetBrushHex("AnsiGreen"),
+            Yellow = GetBrushHex("AnsiYellow"),
+            Blue = GetBrushHex("AnsiBlue"),
+            Magenta = GetBrushHex("AnsiMagenta"),
+            Cyan = GetBrushHex("AnsiCyan"),
+            White = GetBrushHex("AnsiWhite"),
+            BrightBlack = GetBrushHex("AnsiBrightBlack"),
+            BrightRed = GetBrushHex("AnsiBrightRed"),
+            BrightGreen = GetBrushHex("AnsiBrightGreen"),
+            BrightYellow = GetBrushHex("AnsiBrightYellow"),
+            BrightBlue = GetBrushHex("AnsiBrightBlue"),
+            BrightMagenta = GetBrushHex("AnsiBrightMagenta"),
+            BrightCyan = GetBrushHex("AnsiBrightCyan"),
+            BrightWhite = GetBrushHex("AnsiBrightWhite")
+        };
+    }
+
+    private string GetBrushHex(string resourceKey)
+    {
+        if (TryFindResource(resourceKey) is SolidColorBrush brush)
+        {
+            return $"#{brush.Color.R:X2}{brush.Color.G:X2}{brush.Color.B:X2}";
+        }
+
+        return "#000000";
+    }
+
+    private async Task EnsureTerminalViewportReadyAsync()
+    {
+        await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
+        await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+        await _terminalHost.SyncViewportAsync();
+    }
+
+    private void ApplyTerminalPanelLayout(bool isTerminalVisible)
+    {
+        var preset = isTerminalVisible
+            ? TerminalPanelLayoutPreset.Open
+            : TerminalPanelLayoutPreset.Closed;
+
+        EditorRowDefinition.Height = preset.EditorRowHeight;
+        TerminalSplitterRowDefinition.Height = preset.SplitterRowHeight;
+        TerminalPanelRowDefinition.Height = preset.TerminalRowHeight;
     }
 }

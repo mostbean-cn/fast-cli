@@ -1,4 +1,5 @@
 using FastCli.Application.Models;
+using FastCli.Domain.Enums;
 using FastCli.Domain.Models;
 
 namespace FastCli.Application.Abstractions;
@@ -32,6 +33,8 @@ public interface IFastCliAppService
     Task UpdateExecutionRecordOutputAsync(Guid executionRecordId, string outputText, CancellationToken cancellationToken = default);
 
     Task<CommandStartResult> StartCommandAsync(Guid commandId, Action<CommandOutputLine> onOutput, CancellationToken cancellationToken = default);
+
+    Task<CommandSession> StartTerminalAsync(ShellType shellType, Action<CommandOutputLine> onOutput, CancellationToken cancellationToken = default);
 
     Task StopCommandAsync(CommandSession session, CancellationToken cancellationToken = default);
 

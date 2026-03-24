@@ -10,6 +10,13 @@
     <EmbeddedResource Include="..\sql\001_init.sql" Link="sql\001_init.sql" />
     <Resource Include="..\assets\FastCli.ico" Link="assets\FastCli.ico" />
     <Resource Include="..\assets\FastCliHeader.png" Link="assets\FastCliHeader.png" />
+    <Content Include="TerminalWeb\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3856.49" />
   </ItemGroup>
 
   <PropertyGroup>

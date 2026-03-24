@@ -40,4 +40,22 @@
     <!-- 终端背景与文字 -->
     <SolidColorBrush x:Key="TerminalBackgroundBrush" Color="#0D1117" />
     <SolidColorBrush x:Key="TerminalTextBrush" Color="#E6EDF3" />
+
+    <!-- ANSI 标准颜色 -->
+    <SolidColorBrush x:Key="AnsiBlack" Color="#000000" />
+    <SolidColorBrush x:Key="AnsiRed" Color="#FF6B6B" />
+    <SolidColorBrush x:Key="AnsiGreen" Color="#69DB7C" />
+    <SolidColorBrush x:Key="AnsiYellow" Color="#FFD93D" />
+    <SolidColorBrush x:Key="AnsiBlue" Color="#4DABF7" />
+    <SolidColorBrush x:Key="AnsiMagenta" Color="#DA77F2" />
+    <SolidColorBrush x:Key="AnsiCyan" Color="#38D9A9" />
+    <SolidColorBrush x:Key="AnsiWhite" Color="#E6EDF3" />
+    <SolidColorBrush x:Key="AnsiBrightBlack" Color="#495057" />
+    <SolidColorBrush x:Key="AnsiBrightRed" Color="#FF8787" />
+    <SolidColorBrush x:Key="AnsiBrightGreen" Color="#8CE99A" />
+    <SolidColorBrush x:Key="AnsiBrightYellow" Color="#FFE066" />
+    <SolidColorBrush x:Key="AnsiBrightBlue" Color="#74C0FC" />
+    <SolidColorBrush x:Key="AnsiBrightMagenta" Color="#E599F7" />
+    <SolidColorBrush x:Key="AnsiBrightCyan" Color="#63E6BE" />
+    <SolidColorBrush x:Key="AnsiBrightWhite" Color="#FFFFFF" />
 </ResourceDictionary>

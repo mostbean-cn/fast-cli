@@ -15,6 +15,12 @@ public sealed class CommandSession
 
     public Task<CommandCompletionResult> Completion { get; }
 
+    public Func<byte[], CancellationToken, Task>? SendInputAsync { get; init; }
+
+    public Func<int, int, CancellationToken, Task>? ResizeAsync { get; init; }
+
+    public bool IsInteractive => SendInputAsync is not null;
+
     public Task StopAsync(CancellationToken cancellationToken = default)
     {
         return _stopAsync(cancellationToken);

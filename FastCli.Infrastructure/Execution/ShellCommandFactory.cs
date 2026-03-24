@@ -19,7 +19,7 @@ internal static class ShellCommandFactory
         var workingDirectory = ResolveWorkingDirectory(request.WorkingDirectory);
         var startInfo = request.ShellType switch
         {
-            ShellType.Cmd => new ProcessStartInfo("cmd.exe", $"/C {BuildCommandPayload(request)}"),
+            ShellType.Cmd => new ProcessStartInfo("cmd.exe", BuildEmbeddedCmdArguments(request)),
             ShellType.PowerShell => new ProcessStartInfo("powershell.exe", BuildEmbeddedPowerShellArguments(request)),
             ShellType.Pwsh => new ProcessStartInfo("pwsh.exe", BuildEmbeddedPowerShellArguments(request)),
             ShellType.Direct => new ProcessStartInfo(request.CommandText, JoinArguments(request.Arguments)),
@@ -119,14 +119,22 @@ internal static class ShellCommandFactory
     {
         return request.ShellType switch
         {
-            ShellType.Cmd => $"cmd.exe {(request.RunMode == CommandRunMode.Embedded ? "/C" : "/K")} {BuildCommandPayload(request)}",
-            ShellType.PowerShell => $"powershell.exe {(request.RunMode == CommandRunMode.Embedded ? "-NoLogo -NoProfile -NonInteractive -OutputFormat Text -EncodedCommand" : "-NoExit -NoLogo -NoProfile -OutputFormat Text -EncodedCommand")} {EncodePowerShellCommand(BuildPowerShellScript(request))}",
-            ShellType.Pwsh => $"pwsh.exe {(request.RunMode == CommandRunMode.Embedded ? "-NoLogo -NoProfile -NonInteractive -OutputFormat Text -EncodedCommand" : "-NoExit -NoLogo -NoProfile -OutputFormat Text -EncodedCommand")} {EncodePowerShellCommand(BuildPowerShellScript(request))}",
+            ShellType.Cmd => $"cmd.exe {(request.RunMode == CommandRunMode.Embedded ? BuildEmbeddedCmdArguments(request) : $"/K {BuildCommandPayload(request)}")}".Trim(),
+            ShellType.PowerShell => $"powershell.exe {(request.RunMode == CommandRunMode.Embedded ? BuildEmbeddedPowerShellArguments(request) : BuildExternalPowerShellArguments(request))}",
+            ShellType.Pwsh => $"pwsh.exe {(request.RunMode == CommandRunMode.Embedded ? BuildEmbeddedPowerShellArguments(request) : BuildExternalPowerShellArguments(request))}",
             ShellType.Direct => request.RunMode == CommandRunMode.Embedded
                 ? $"{QuoteIfNeeded(request.CommandText)} {JoinArguments(request.Arguments)}".Trim()
                 : $"cmd.exe /K {BuildCommandPayload(request)}",
             _ => string.Empty
         };
+    }
+
+    private static string BuildEmbeddedCmdArguments(CommandExecutionRequest request)
+    {
+        var payload = BuildCommandPayload(request);
+        return string.IsNullOrWhiteSpace(payload)
+            ? "/Q"
+            : $"/C {payload}";
     }
 
     private static string BuildEmbeddedPowerShellArguments(CommandExecutionRequest request)
@@ -149,7 +157,7 @@ internal static class ShellCommandFactory
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $OutputEncoding = [Console]::OutputEncoding
 if ($PSVersionTable.PSVersion.Major -ge 7) { $PSStyle.OutputRendering = 'PlainText' }
-""" + Environment.NewLine + commandPayload;
+""" + (string.IsNullOrWhiteSpace(commandPayload) ? string.Empty : Environment.NewLine + commandPayload);
     }
 
     private static Encoding GetEmbeddedOutputEncoding(ShellType shellType)
@@ -174,7 +182,7 @@ if ($PSVersionTable.PSVersion.Major -ge 7) { $PSStyle.OutputRendering = 'PlainTe
         }
     }
 
-    private static string ResolveWorkingDirectory(string? workingDirectory)
+    internal static string ResolveWorkingDirectory(string? workingDirectory)
     {
         if (string.IsNullOrWhiteSpace(workingDirectory))
         {
@@ -182,5 +190,35 @@ if ($PSVersionTable.PSVersion.Major -ge 7) { $PSStyle.OutputRendering = 'PlainTe
         }
 
         return workingDirectory;
+    }
+
+    internal static string ResolveShellPath(ShellType shellType)
+    {
+        return shellType switch
+        {
+            ShellType.Cmd => "cmd.exe",
+            ShellType.PowerShell => "powershell.exe",
+            ShellType.Pwsh => "pwsh.exe",
+            ShellType.Direct => string.Empty,
+            _ => throw new InvalidOperationException($"Unsupported shell type: {shellType}")
+        };
+    }
+
+    internal static string[] BuildConPtyArguments(CommandExecutionRequest request)
+    {
+        return request.ShellType switch
+        {
+            ShellType.Cmd => string.IsNullOrWhiteSpace(BuildCommandPayload(request))
+                ? []
+                : ["/C", BuildCommandPayload(request)],
+            ShellType.PowerShell => string.IsNullOrWhiteSpace(BuildCommandPayload(request))
+                ? ["-NoLogo", "-NoProfile"]
+                : ["-NoLogo", "-NoProfile", "-Command", BuildCommandPayload(request)],
+            ShellType.Pwsh => string.IsNullOrWhiteSpace(BuildCommandPayload(request))
+                ? ["-NoLogo", "-NoProfile"]
+                : ["-NoLogo", "-NoProfile", "-Command", BuildCommandPayload(request)],
+            ShellType.Direct => [.. request.Arguments],
+            _ => []
+        };
     }
 }

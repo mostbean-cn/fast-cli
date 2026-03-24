@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:loc="clr-namespace:FastCli.Desktop.Localization"
         xmlns:mvvm="clr-namespace:FastCli.Desktop.Mvvm"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         Title="{loc:Loc MainWindow_Title}" Width="1200" Height="800"
         WindowStartupLocation="CenterScreen"
@@ -15,6 +16,7 @@
         FontFamily="Microsoft YaHei UI, Segoe UI Variable Display, Segoe UI, sans-serif"
         Loaded="Window_Loaded">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <mvvm:ShellTypeDisplayConverter x:Key="ShellTypeDisplayConverter" />
         <sys:Double x:Key="{x:Static SystemParameters.VerticalScrollBarWidthKey}">8</sys:Double>
         <sys:Double x:Key="{x:Static SystemParameters.HorizontalScrollBarHeightKey}">8</sys:Double>
@@ -318,6 +320,25 @@
                 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource TertiaryTextBrush}" VerticalAlignment="Center" Margin="0,0,16,0" />
+                    <Button Click="OpenTerminalButton_Click"
+                            IsEnabled="{Binding CanOpenTerminal}"
+                            ToolTip="{loc:Loc MainWindow_OpenTerminalTooltip}"
+                            Margin="0,0,8,0"
+                            Padding="12,0"
+                            Height="36">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="&#xE756;" FontSize="14" Margin="0,0,6,0" Style="{StaticResource ButtonGlyphTextStyle}" />
+                            <TextBlock Text="{loc:Loc MainWindow_OpenTerminal}" FontWeight="SemiBold" Style="{StaticResource ButtonLabelTextStyle}" />
+                            <TextBlock Text="&#xE70D;" FontSize="12" Margin="6,0,0,0" Style="{StaticResource ButtonGlyphTextStyle}" />
+                        </StackPanel>
+                        <Button.ContextMenu>
+                            <ContextMenu Placement="Bottom">
+                                <MenuItem Header="{loc:Loc Shell_CmdOption}" Tag="Cmd" Click="OpenTerminalShellMenuItem_Click" />
+                                <MenuItem Header="{loc:Loc Shell_PowerShellOption}" Tag="PowerShell" Click="OpenTerminalShellMenuItem_Click" />
+                                <MenuItem Header="{loc:Loc Shell_PwshOption}" Tag="Pwsh" Click="OpenTerminalShellMenuItem_Click" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                     <Button Click="OpenSettingsButton_Click" Style="{StaticResource IconButtonStyle}" ToolTip="{loc:Loc MainWindow_SettingsTooltip}">
                         <TextBlock Text="&#xE713;" FontSize="16" Style="{StaticResource ButtonGlyphTextStyle}" />
                     </Button>
@@ -426,11 +447,11 @@
                 
                 <!-- Right Area (Editor + Terminal) -->
                 <Grid Grid.Column="2">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="7*" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="3*" MinHeight="160" />
-                    </Grid.RowDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition x:Name="EditorRowDefinition" Height="*" />
+                    <RowDefinition x:Name="TerminalSplitterRowDefinition" Height="0" />
+                    <RowDefinition x:Name="TerminalPanelRowDefinition" Height="0" MinHeight="0" />
+                </Grid.RowDefinitions>
                 
                 <!-- Editor -->
                 <Grid Grid.Row="0">
@@ -673,18 +694,41 @@
                     </ScrollViewer>
                 </Grid>
                 
-                <GridSplitter Grid.Row="1" Height="8" HorizontalAlignment="Stretch" Cursor="SizeNS" Style="{StaticResource SubtleGridSplitterStyle}" />
+                <GridSplitter Grid.Row="1"
+                              Height="8"
+                              HorizontalAlignment="Stretch"
+                              Cursor="SizeNS"
+                              Visibility="{Binding IsTerminalPanelVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+                              Style="{StaticResource SubtleGridSplitterStyle}" />
                 
-                <Grid Grid.Row="2" Background="{DynamicResource TerminalBackgroundBrush}">
+                <Grid Grid.Row="2"
+                      Background="{DynamicResource TerminalBackgroundBrush}"
+                      Visibility="{Binding IsTerminalPanelVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="36" />
+                        <RowDefinition Height="56" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     
                     <Border BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,1,0,1">
-                        <DockPanel Margin="16,0">
-                            <TextBlock Text="{loc:Loc MainWindow_TerminalOutput}" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" DockPanel.Dock="Left" FontFamily="Consolas" />
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <DockPanel Margin="16,8">
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{loc:Loc MainWindow_TerminalOutput}" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" FontFamily="Consolas" />
+                                    <TextBlock Text="{Binding TerminalSessionLabel}"
+                                               Margin="12,0,0,0"
+                                               VerticalAlignment="Center"
+                                               FontWeight="SemiBold" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <Border Background="{DynamicResource SelectedItemBackgroundBrush}" CornerRadius="999" Padding="8,2">
+                                        <TextBlock Text="{Binding TerminalSessionStatus}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                    </Border>
+                                    <Border Background="{DynamicResource ControlBackgroundBrush}" CornerRadius="999" Padding="8,2" Margin="8,0,0,0">
+                                        <TextBlock Text="{Binding TerminalInputStatus}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <Button Click="StopCommandButton_Click" IsEnabled="{Binding CanStopCommand}" Style="{StaticResource SecondaryBorderlessButton}" Foreground="{DynamicResource DangerButtonBackgroundBrush}" Margin="0,0,8,0" Padding="6,4">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="&#xE71A;" Margin="0,0,6,0" Style="{StaticResource ButtonGlyphTextStyle}" />
@@ -703,41 +747,38 @@
                                         <TextBlock Text="{loc:Loc Common_Clear}" Style="{StaticResource ButtonLabelTextStyle}" />
                                     </StackPanel>
                                 </Button>
+                                <Button Click="CloseTerminalPanelButton_Click"
+                                        Style="{StaticResource SecondaryBorderlessButton}"
+                                        Foreground="{DynamicResource SecondaryTextBrush}"
+                                        ToolTip="{loc:Loc MainWindow_TerminalCloseTooltip}"
+                                        Margin="8,0,0,0"
+                                        Padding="6,4">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE711;" Margin="0,0,6,0" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                        <TextBlock Text="{loc:Loc Common_Close}" Style="{StaticResource ButtonLabelTextStyle}" />
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
                         </DockPanel>
                     </Border>
 
-                    <ScrollViewer x:Name="TerminalLogScrollViewer"
-                                  Grid.Row="1"
-                                  Padding="16"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
-                        <ItemsControl ItemsSource="{Binding TerminalLogEntries}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock FontFamily="Consolas"
-                                               FontSize="13"
-                                               Text="{Binding Text}"
-                                               TextWrapping="Wrap"
-                                               Margin="0,0,0,4">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{DynamicResource TerminalTextBrush}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsSystem}" Value="True">
-                                                        <Setter Property="Foreground" Value="#9FE8A8" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IsError}" Value="True">
-                                                        <Setter Property="Foreground" Value="#FF8A8A" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                    <Grid Grid.Row="1">
+                        <wv2:WebView2 x:Name="TerminalWebView"
+                                      Margin="0"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch" />
+                        <Border x:Name="TerminalUnavailableOverlay"
+                                Background="{DynamicResource TerminalBackgroundBrush}"
+                                Visibility="Collapsed">
+                            <TextBlock x:Name="TerminalUnavailableText"
+                                       Margin="20"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       TextAlignment="Center" />
+                        </Border>
+                    </Grid>
                 </Grid>
             </Grid>
 

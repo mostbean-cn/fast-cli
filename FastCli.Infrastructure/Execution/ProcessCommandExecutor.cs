@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
 using FastCli.Domain.Enums;
@@ -25,6 +26,9 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
         CancellationToken cancellationToken = default)
     {
         var startInfo = ShellCommandFactory.CreateEmbeddedStartInfo(request, _localizer);
+        startInfo.RedirectStandardInput = true;
+        startInfo.StandardInputEncoding = System.Text.Encoding.UTF8;
+
         var process = new Process
         {
             StartInfo = startInfo,
@@ -34,39 +38,13 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
         var completionSource = new TaskCompletionSource<CommandCompletionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var canceled = 0;
 
-        process.OutputDataReceived += (_, eventArgs) =>
-        {
-            if (!string.IsNullOrEmpty(eventArgs.Data))
-            {
-                onOutput(new CommandOutputLine
-                {
-                    Timestamp = DateTimeOffset.Now,
-                    Text = eventArgs.Data,
-                    IsError = false
-                });
-            }
-        };
-
-        process.ErrorDataReceived += (_, eventArgs) =>
-        {
-            if (!string.IsNullOrEmpty(eventArgs.Data))
-            {
-                onOutput(new CommandOutputLine
-                {
-                    Timestamp = DateTimeOffset.Now,
-                    Text = eventArgs.Data,
-                    IsError = true
-                });
-            }
-        };
-
         if (!process.Start())
         {
             throw new InvalidOperationException(_localizer.Get("Service_CommandStartFailed"));
         }
 
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
+        var stdoutTask = PumpReaderAsync(process.StandardOutput, isError: false, onOutput);
+        var stderrTask = PumpReaderAsync(process.StandardError, isError: true, onOutput);
 
         var registration = cancellationToken.Register(() =>
         {
@@ -79,7 +57,7 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
                 try
                 {
                     await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
-                    process.WaitForExit();
+                    await Task.WhenAll(stdoutTask, stderrTask).ConfigureAwait(false);
                     var isCanceled = Interlocked.CompareExchange(ref canceled, 0, 0) == 1;
                     completionSource.TrySetResult(CreateEmbeddedResult(process.ExitCode, isCanceled));
                 }
@@ -95,10 +73,31 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
             },
             CancellationToken.None);
 
+        Func<byte[], CancellationToken, Task> sendInput = async (bytes, ct) =>
+        {
+            if (process.HasExited)
+            {
+                return;
+            }
+
+            try
+            {
+                var text = System.Text.Encoding.UTF8.GetString(bytes);
+                await process.StandardInput.WriteAsync(text.AsMemory(), ct);
+                await process.StandardInput.FlushAsync(ct);
+            }
+            catch
+            {
+            }
+        };
+
         return Task.FromResult(new CommandSession(
             request.ExecutionId,
             completionSource.Task,
-            _ => StopProcessAsync(process, () => Interlocked.Exchange(ref canceled, 1))));
+            _ => StopProcessAsync(process, () => Interlocked.Exchange(ref canceled, 1)))
+        {
+            SendInputAsync = sendInput
+        });
     }
 
     public Task<CommandCompletionResult> StartExternalAsync(
@@ -121,6 +120,14 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
         });
     }
 
+    public Task<CommandSession> StartTerminalAsync(
+        CommandExecutionRequest request,
+        Action<CommandOutputLine> onOutput,
+        CancellationToken cancellationToken = default)
+    {
+        return StartEmbeddedAsync(request, onOutput, cancellationToken);
+    }
+
     private static async Task StopProcessAsync(Process process, Action markCanceled)
     {
         try
@@ -137,6 +144,40 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
         {
         }
         catch (Exception)
+        {
+        }
+    }
+
+    private static async Task PumpReaderAsync(
+        StreamReader reader,
+        bool isError,
+        Action<CommandOutputLine> onOutput)
+    {
+        var buffer = new char[4096];
+
+        try
+        {
+            while (true)
+            {
+                var charsRead = await reader.ReadAsync(buffer.AsMemory(0, buffer.Length)).ConfigureAwait(false);
+
+                if (charsRead == 0)
+                {
+                    break;
+                }
+
+                onOutput(new CommandOutputLine
+                {
+                    Timestamp = DateTimeOffset.Now,
+                    Text = new string(buffer, 0, charsRead),
+                    IsError = isError
+                });
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (InvalidOperationException)
         {
         }
     }

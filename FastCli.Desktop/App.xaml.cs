@@ -31,7 +31,9 @@ public partial class App : System.Windows.Application
         var databaseInitializer = new SqliteDatabaseInitializer(databasePath, schemaSql);
         var localizer = LocalizationManager.Instance;
         var repository = new SqliteFastCliRepository(databaseInitializer, localizer);
-        var commandExecutor = new ProcessCommandExecutor(localizer);
+
+        var commandExecutor = CreateCommandExecutor(localizer);
+
         var appService = new FastCliAppService(repository, commandExecutor, localizer);
         var selectionStateStore = new SelectionStateStore(selectionStatePath);
         var updateStateStore = new UpdateStateStore(updateStatePath);
@@ -89,5 +91,21 @@ public partial class App : System.Windows.Application
 
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
+    }
+
+    private static FastCli.Application.Abstractions.ICommandExecutor CreateCommandExecutor(LocalizationManager localizer)
+    {
+        try
+        {
+            if (Environment.OSVersion.Version >= new Version(10, 0, 17763))
+            {
+                return new ConPtyCommandExecutor(localizer);
+            }
+        }
+        catch
+        {
+        }
+
+        return new ProcessCommandExecutor(localizer);
     }
 }

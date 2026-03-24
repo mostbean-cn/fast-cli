@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastCli.Domain", "FastCli.D
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastCli.Infrastructure", "FastCli.Infrastructure\FastCli.Infrastructure.csproj", "{87A1455D-DAC2-4873-A9BB-AAC824276C2D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FastCli.Tests", "FastCli.Tests\FastCli.Tests.csproj", "{742945E1-9AE6-4501-BBDF-2CBC98615A45}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{87A1455D-DAC2-4873-A9BB-AAC824276C2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{87A1455D-DAC2-4873-A9BB-AAC824276C2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{87A1455D-DAC2-4873-A9BB-AAC824276C2D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{742945E1-9AE6-4501-BBDF-2CBC98615A45}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{742945E1-9AE6-4501-BBDF-2CBC98615A45}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{742945E1-9AE6-4501-BBDF-2CBC98615A45}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{742945E1-9AE6-4501-BBDF-2CBC98615A45}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

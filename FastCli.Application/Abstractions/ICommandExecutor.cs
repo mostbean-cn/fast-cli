@@ -13,5 +13,10 @@ public interface ICommandExecutor
         CommandExecutionRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<CommandSession> StartTerminalAsync(
+        CommandExecutionRequest request,
+        Action<CommandOutputLine> onOutput,
+        CancellationToken cancellationToken = default);
+
     CommandDisplayInfo BuildDisplayInfo(CommandExecutionRequest request);
 }

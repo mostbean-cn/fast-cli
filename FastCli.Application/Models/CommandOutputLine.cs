@@ -7,4 +7,6 @@ public sealed class CommandOutputLine
     public string Text { get; init; } = string.Empty;
 
     public bool IsError { get; init; }
+
+    public IReadOnlyList<AnsiTextSegment>? AnsiSegments { get; init; }
 }

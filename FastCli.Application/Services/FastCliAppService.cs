@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Text;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
-using FastCli.Application.Utilities;
 using FastCli.Domain.Enums;
 using FastCli.Domain.Models;
 
@@ -213,10 +212,7 @@ public sealed class FastCliAppService : IFastCliAppService
                 EndedAt = DateTimeOffset.Now,
                 ExitCode = completion.ExitCode,
                 Summary = completion.Summary,
-                OutputText = TerminalTranscriptCodec.AppendLine(
-                    transcript: null,
-                    kind: completion.Status == ExecutionStatus.Failure ? TerminalLogKind.Error : TerminalLogKind.System,
-                    text: FormatSystemLogText(completion.Summary))
+                OutputText = string.Empty
             };
 
             await _repository.SaveExecutionRecordAsync(record, cancellationToken);
@@ -240,30 +236,50 @@ public sealed class FastCliAppService : IFastCliAppService
             OutputText = string.Empty
         };
 
-        var logBuilder = new StringBuilder();
-        AppendTranscriptLine(logBuilder, TerminalLogKind.System, FormatSystemLogText(_localizer.Format("MainWindow_StatusCommandStarted", profile.Name)));
-        runningRecord.OutputText = logBuilder.ToString();
-
         await _repository.SaveExecutionRecordAsync(runningRecord, cancellationToken);
 
+        var logBuilder = new StringBuilder();
         var logLock = new object();
 
         void ForwardOutput(CommandOutputLine line)
         {
+            if (string.IsNullOrEmpty(line.Text))
+            {
+                return;
+            }
+
             lock (logLock)
             {
-                AppendTranscriptLine(logBuilder, line.IsError ? TerminalLogKind.Error : TerminalLogKind.Output, line.Text);
+                logBuilder.Append(line.Text);
             }
 
             onOutput(line);
         }
 
-        var executorSession = await _commandExecutor.StartEmbeddedAsync(request, ForwardOutput, cancellationToken);
+        CommandSession executorSession;
+
+        try
+        {
+            executorSession = await _commandExecutor.StartEmbeddedAsync(request, ForwardOutput, cancellationToken);
+        }
+        catch (Exception)
+        {
+            runningRecord.Status = ExecutionStatus.Failure;
+            runningRecord.EndedAt = DateTimeOffset.Now;
+            runningRecord.OutputText = logBuilder.ToString();
+            await _repository.SaveExecutionRecordAsync(runningRecord, cancellationToken);
+            throw;
+        }
+
         var persistedCompletion = PersistExecutionResultAsync(runningRecord, executorSession, logBuilder, logLock);
         var session = new CommandSession(
             executorSession.ExecutionId,
             persistedCompletion,
-            executorSession.StopAsync);
+            executorSession.StopAsync)
+        {
+            SendInputAsync = executorSession.SendInputAsync,
+            ResizeAsync = executorSession.ResizeAsync
+        };
 
         return new CommandStartResult
         {
@@ -277,6 +293,30 @@ public sealed class FastCliAppService : IFastCliAppService
     public Task StopCommandAsync(CommandSession session, CancellationToken cancellationToken = default)
     {
         return session.StopAsync(cancellationToken);
+    }
+
+    public Task<CommandSession> StartTerminalAsync(
+        ShellType shellType,
+        Action<CommandOutputLine> onOutput,
+        CancellationToken cancellationToken = default)
+    {
+        if (shellType == ShellType.Direct)
+        {
+            throw new InvalidOperationException(_localizer.Get("Service_UnsupportedShellType"));
+        }
+
+        var request = new CommandExecutionRequest
+        {
+            Name = _localizer.Get("MainWindow_TerminalSessionName"),
+            ShellType = shellType,
+            RunMode = CommandRunMode.Embedded,
+            CommandText = string.Empty,
+            Arguments = Array.Empty<string>(),
+            EnvironmentVariables = Array.Empty<EnvironmentVariableEntry>(),
+            RunAsAdministrator = false
+        };
+
+        return _commandExecutor.StartTerminalAsync(request, onOutput, cancellationToken);
     }
 
     public CommandDisplayInfo BuildDisplayInfo(CommandProfile profile)
@@ -303,10 +343,6 @@ public sealed class FastCliAppService : IFastCliAppService
 
             lock (logLock)
             {
-                AppendTranscriptLine(
-                    logBuilder,
-                    completion.Status == ExecutionStatus.Failure ? TerminalLogKind.Error : TerminalLogKind.System,
-                    FormatSystemLogText(completion.Summary));
                 record.OutputText = logBuilder.ToString();
             }
         }
@@ -323,31 +359,12 @@ public sealed class FastCliAppService : IFastCliAppService
 
             lock (logLock)
             {
-                AppendTranscriptLine(
-                    logBuilder,
-                    TerminalLogKind.Error,
-                    FormatSystemLogText(record.Summary));
                 record.OutputText = logBuilder.ToString();
             }
         }
 
         await _repository.SaveExecutionRecordAsync(record).ConfigureAwait(false);
         return completion;
-    }
-
-    private static string FormatSystemLogText(string text)
-    {
-        return $"{text} [{DateTime.Now:HH:mm:ss}]";
-    }
-
-    private static void AppendTranscriptLine(StringBuilder builder, TerminalLogKind kind, string text)
-    {
-        if (builder.Length > 0)
-        {
-            builder.AppendLine();
-        }
-
-        builder.Append(TerminalTranscriptCodec.Encode(kind, text));
     }
 
     private static CommandExecutionRequest ToExecutionRequest(CommandProfile profile)
