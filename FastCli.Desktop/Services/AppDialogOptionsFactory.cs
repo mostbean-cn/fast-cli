@@ -44,6 +44,39 @@ public sealed class AppDialogOptionsFactory
         };
     }
 
+    public AppDialogOptions CreateNotice(string title, string headline, string? message = null, string? primaryButtonText = null, string glyph = "\uE946")
+    {
+        return new AppDialogOptions
+        {
+            Title = title,
+            Headline = headline,
+            Message = message,
+            PrimaryButtonText = string.IsNullOrWhiteSpace(primaryButtonText)
+                ? _localizer.Get("Common_GotIt")
+                : primaryButtonText,
+            Glyph = glyph
+        };
+    }
+
+    public AppDialogOptions CreateConfirmation(
+        string title,
+        string headline,
+        string message,
+        string primaryButtonText,
+        string secondaryButtonText,
+        string glyph = "\uE7BA")
+    {
+        return new AppDialogOptions
+        {
+            Title = title,
+            Headline = headline,
+            Message = message,
+            PrimaryButtonText = primaryButtonText,
+            SecondaryButtonText = secondaryButtonText,
+            Glyph = glyph
+        };
+    }
+
     public AppDialogOptions CreateError(string title, string headline, string message)
     {
         return new AppDialogOptions

@@ -1,5 +1,6 @@
 using System.Windows;
 using FastCli.Desktop.Localization;
+using FastCli.Desktop.Services;
 
 namespace FastCli.Desktop.Views;
 
@@ -8,6 +9,7 @@ public partial class TextPromptWindow : Window
     public TextPromptWindow(string title, string message, string initialValue)
     {
         InitializeComponent();
+        WindowAppearanceService.Register(this);
         Title = string.IsNullOrWhiteSpace(title) ? LocalizationManager.Instance.Get("TextPrompt_TitleDefault") : title;
         MessageTextBlock.Text = message;
         InputTextBox.Text = initialValue;
@@ -32,12 +34,13 @@ public partial class TextPromptWindow : Window
     {
         if (string.IsNullOrWhiteSpace(InputTextBox.Text))
         {
-            MessageBox.Show(
+            var optionsFactory = new AppDialogOptionsFactory(LocalizationManager.Instance);
+            AppDialogWindow.ShowDialog(
                 this,
-                LocalizationManager.Instance.Get("TextPrompt_EmptyContent"),
-                LocalizationManager.Instance.Get("TextPrompt_NoticeTitle"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                optionsFactory.CreateNotice(
+                    LocalizationManager.Instance.Get("TextPrompt_NoticeTitle"),
+                    LocalizationManager.Instance.Get("TextPrompt_EmptyContent"),
+                    glyph: "\uE946"));
             return;
         }
 

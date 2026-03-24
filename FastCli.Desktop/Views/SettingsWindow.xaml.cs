@@ -1,4 +1,5 @@
 using System.Windows;
+using FastCli.Desktop.Services;
 using FastCli.Desktop.ViewModels;
 
 namespace FastCli.Desktop.Views;
@@ -9,6 +10,7 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent();
         ViewModel = viewModel;
+        WindowAppearanceService.Register(this);
         var settingsView = new SettingsView(viewModel);
         settingsView.BackRequested += (_, _) => Close();
         ContentHost.Children.Add(settingsView);

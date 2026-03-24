@@ -31,13 +31,14 @@
             <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="8,6" />
+            <Setter Property="MinHeight" Value="38" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
                         <Border Background="{TemplateBinding Background}" 
                                 BorderBrush="{TemplateBinding BorderBrush}" 
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4">
+                                CornerRadius="8">
                             <ScrollViewer x:Name="PART_ContentHost" Margin="0" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -45,7 +46,8 @@
                                 <Setter Property="BorderBrush" Value="{DynamicResource ControlFocusedBorderBrush}" />
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonBackgroundBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource SelectedItemBorderBrush}" />
+                                <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -78,7 +80,7 @@
         </Style>
 
         <ControlTemplate x:Key="ModernComboBoxToggleButton" TargetType="ToggleButton">
-            <Border x:Name="templateRoot" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+            <Border x:Name="templateRoot" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -114,7 +116,7 @@
                             <ContentPresenter x:Name="contentPresenter" IsHitTestVisible="False" Margin="{TemplateBinding Padding}" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
                             
                             <Popup x:Name="PART_Popup" AllowsTransparency="True" IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}" Placement="Bottom" PopupAnimation="Slide">
-                                <Border Margin="0,4,0,0" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="6" MaxHeight="{TemplateBinding MaxDropDownHeight}" MinWidth="{Binding ActualWidth, ElementName=toggleButton}">
+                                <Border Margin="0,6,0,0" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10" MaxHeight="{TemplateBinding MaxDropDownHeight}" MinWidth="{Binding ActualWidth, ElementName=toggleButton}">
                                     <ScrollViewer x:Name="DropDownScrollViewer" Margin="0,4" CanContentScroll="True" VerticalScrollBarVisibility="Auto">
                                         <ItemsPresenter x:Name="ItemsPresenter" KeyboardNavigation.DirectionalNavigation="Contained" />
                                     </ScrollViewer>
@@ -129,17 +131,26 @@
             <Setter Property="Background" Value="{DynamicResource SecondaryButtonBackgroundBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource SecondaryButtonForegroundBrush}" />
             <Setter Property="Padding" Value="12,6" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="MinHeight" Value="38" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="Background" Value="{DynamicResource SecondaryButtonHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ControlPressedBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.5" />
@@ -152,19 +163,29 @@
         <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="{DynamicResource PrimaryButtonBackgroundBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource PrimaryButtonForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonBackgroundBrush}" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{DynamicResource PrimaryButtonHoverBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource PrimaryButtonHoverBrush}" />
+                    <Setter Property="Opacity" Value="0.94" />
                 </Trigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="SecondaryBorderlessButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="Padding" Value="4" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ControlPressedBrush}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -265,7 +286,12 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}" Margin="0,2">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,2">
                             <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -274,6 +300,7 @@
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter Property="Background" Value="{DynamicResource SelectedItemBackgroundBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource SelectedItemBorderBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -376,7 +403,7 @@
         </Grid.RowDefinitions>
         
         <!-- Header -->
-        <Border Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,0,0,1">
+        <Border Background="{DynamicResource TitleBarBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,0,0,1">
             <Grid Margin="16,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -537,7 +564,7 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <Border Background="{DynamicResource PanelBackgroundBrush}"
+                    <Border Background="{DynamicResource TitleBarBackgroundBrush}"
                             BorderBrush="{DynamicResource PanelBorderBrush}"
                             BorderThickness="0,0,0,1"
                             Padding="24,12,24,10">
@@ -669,7 +696,7 @@
                                            Foreground="{DynamicResource TertiaryTextBrush}"
                                            TextWrapping="Wrap" />
 
-                                <Border BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="1" CornerRadius="6" Background="{DynamicResource ControlBackgroundBrush}" Padding="10,10,6,10">
+                                <Border BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="1" CornerRadius="10" Background="{DynamicResource ControlBackgroundBrush}" Padding="10,10,6,10">
                                     <Grid Height="140">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
@@ -698,8 +725,8 @@
                                                 <DataTemplate>
                                                     <Border BorderBrush="{DynamicResource ControlBorderBrush}"
                                                             BorderThickness="1"
-                                                            CornerRadius="6"
-                                                            Background="{DynamicResource PanelBackgroundBrush}"
+                                                            CornerRadius="8"
+                                                            Background="{DynamicResource ControlHoverBrush}"
                                                             Padding="8">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
@@ -709,7 +736,7 @@
                                                             </Grid.ColumnDefinitions>
                                                             <TextBox Text="{Binding Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                      IsEnabled="{Binding DataContext.CanEditCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                     Background="{DynamicResource WindowBackgroundBrush}"
+                                                                     Background="{DynamicResource PanelBackgroundBrush}"
                                                                      BorderBrush="{DynamicResource ControlBorderBrush}"
                                                                      BorderThickness="1"
                                                                      Padding="8,6"
@@ -720,7 +747,7 @@
                                                                     HorizontalAlignment="Center"
                                                                     VerticalAlignment="Center"
                                                                     Background="{DynamicResource SelectedItemBackgroundBrush}"
-                                                                    CornerRadius="4">
+                                                                    CornerRadius="6">
                                                                 <TextBlock Text="="
                                                                            Foreground="{DynamicResource SecondaryTextBrush}"
                                                                            HorizontalAlignment="Center"
@@ -730,7 +757,7 @@
                                                             <TextBox Grid.Column="2"
                                                                      Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                      IsEnabled="{Binding DataContext.CanEditCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                     Background="{DynamicResource WindowBackgroundBrush}"
+                                                                     Background="{DynamicResource PanelBackgroundBrush}"
                                                                      BorderBrush="{DynamicResource ControlBorderBrush}"
                                                                      BorderThickness="1"
                                                                      Padding="8,6"

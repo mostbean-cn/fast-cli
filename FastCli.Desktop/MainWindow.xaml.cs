@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     private Point _groupDragStartPoint;
     private Point _commandDragStartPoint;
     private readonly GitHubReleaseUpdateService _updateService;
+    private readonly AppDialogOptionsFactory _dialogOptionsFactory;
     private readonly TerminalWebViewHost _terminalHost;
     private readonly DispatcherTimer _terminalViewportSyncTimer;
     private SettingsView? _settingsView;
@@ -33,6 +34,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         ViewModel = viewModel;
         _updateService = updateService;
+        _dialogOptionsFactory = new AppDialogOptionsFactory(LocalizationManager.Instance);
         DataContext = viewModel;
         _terminalHost = new TerminalWebViewHost(
             TerminalWebView,
@@ -49,6 +51,7 @@ public partial class MainWindow : Window
         ViewModel.TerminalOutputAppended += ViewModel_TerminalOutputAppended;
         ViewModel.TerminalOutputReplaced += ViewModel_TerminalOutputReplaced;
         ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+        WindowAppearanceService.Register(this);
     }
 
     public MainWindowViewModel ViewModel { get; }
@@ -103,14 +106,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        var result = MessageBox.Show(
+        var result = AppDialogWindow.ShowDialog(
             this,
-            LocalizationManager.Instance.Format("MainWindow_DeleteGroupConfirmMessage", ViewModel.SelectedGroup.Name),
-            LocalizationManager.Instance.Get("MainWindow_DeleteConfirmTitle"),
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            _dialogOptionsFactory.CreateConfirmation(
+                LocalizationManager.Instance.Get("MainWindow_DeleteConfirmTitle"),
+                LocalizationManager.Instance.Get("MainWindow_DeleteConfirmTitle"),
+                LocalizationManager.Instance.Format("MainWindow_DeleteGroupConfirmMessage", ViewModel.SelectedGroup.Name),
+                LocalizationManager.Instance.Get("Common_Delete"),
+                LocalizationManager.Instance.Get("Common_Cancel"),
+                "\uE74D"));
 
-        if (result == MessageBoxResult.Yes)
+        if (result == AppDialogResult.Primary)
         {
             await ViewModel.DeleteSelectedGroupAsync();
         }
@@ -133,14 +139,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        var result = MessageBox.Show(
+        var result = AppDialogWindow.ShowDialog(
             this,
-            LocalizationManager.Instance.Format("MainWindow_DeleteCommandConfirmMessage", ViewModel.SelectedCommand.Name),
-            LocalizationManager.Instance.Get("MainWindow_DeleteConfirmTitle"),
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            _dialogOptionsFactory.CreateConfirmation(
+                LocalizationManager.Instance.Get("MainWindow_DeleteConfirmTitle"),
+                LocalizationManager.Instance.Get("MainWindow_DeleteConfirmTitle"),
+                LocalizationManager.Instance.Format("MainWindow_DeleteCommandConfirmMessage", ViewModel.SelectedCommand.Name),
+                LocalizationManager.Instance.Get("Common_Delete"),
+                LocalizationManager.Instance.Get("Common_Cancel"),
+                "\uE74D"));
 
-        if (result == MessageBoxResult.Yes)
+        if (result == AppDialogResult.Primary)
         {
             await ViewModel.DeleteSelectedCommandAsync();
         }

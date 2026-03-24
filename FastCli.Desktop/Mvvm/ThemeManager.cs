@@ -8,6 +8,8 @@ public static class ThemeManager
 {
     private static bool _isDarkTheme;
 
+    public static event Action<bool>? ThemeChanged;
+
     public static bool IsDarkTheme
     {
         get => _isDarkTheme;
@@ -46,6 +48,7 @@ public static class ThemeManager
         }
 
         appResources.MergedDictionaries.Insert(0, dict);
+        ThemeChanged?.Invoke(isDark);
     }
 
     private static ResourceDictionary? GetThemeDictionary(ResourceDictionary resources)

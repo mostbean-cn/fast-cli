@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using FastCli.Desktop.Localization;
+using FastCli.Desktop.Services;
 using FastCli.Desktop.ViewModels;
 
 namespace FastCli.Desktop.Views;
@@ -39,23 +40,25 @@ public partial class SettingsView : UserControl
     {
         await ViewModel.ClearSkippedVersionAsync();
         var owner = Window.GetWindow(this);
+        var dialogOptionsFactory = new AppDialogOptionsFactory(LocalizationManager.Instance);
+        var options = dialogOptionsFactory.CreateNotice(
+            LocalizationManager.Instance.Get("Settings_Title"),
+            LocalizationManager.Instance.Get("Settings_ClearSkippedSuccess"),
+            glyph: "\uE73E");
 
         if (owner is not null)
         {
-            MessageBox.Show(
-                owner,
-                LocalizationManager.Instance.Get("Settings_ClearSkippedSuccess"),
-                LocalizationManager.Instance.Get("Settings_Title"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            AppDialogWindow.ShowDialog(owner, options);
             return;
         }
 
-        MessageBox.Show(
-            LocalizationManager.Instance.Get("Settings_ClearSkippedSuccess"),
-            LocalizationManager.Instance.Get("Settings_Title"),
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        if (System.Windows.Application.Current.MainWindow is Window fallbackOwner)
+        {
+            AppDialogWindow.ShowDialog(fallbackOwner, options);
+            return;
+        }
+
+        new AppDialogWindow(options).ShowDialog();
     }
 
     private void OpenReleasesButton_Click(object sender, RoutedEventArgs e)
