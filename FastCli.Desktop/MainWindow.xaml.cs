@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _terminalViewportSyncTimer;
     private SettingsView? _settingsView;
     private TerminalPanelLayoutPreset? _terminalRestoreLayout;
+    private Visibility _terminalSurfaceVisibilityBeforeSettings = Visibility.Visible;
 
     public MainWindow(MainWindowViewModel viewModel, GitHubReleaseUpdateService updateService)
     {
@@ -440,6 +441,8 @@ public partial class MainWindow : Window
         _settingsView = new SettingsView(settingsViewModel);
         _settingsView.BackRequested += SettingsView_BackRequested;
         SettingsPageHost.Content = _settingsView;
+        _terminalSurfaceVisibilityBeforeSettings = TerminalWebView.Visibility;
+        TerminalWebView.Visibility = Visibility.Hidden;
         SettingsPageContainer.Visibility = Visibility.Visible;
     }
 
@@ -453,6 +456,7 @@ public partial class MainWindow : Window
 
         SettingsPageHost.Content = null;
         SettingsPageContainer.Visibility = Visibility.Collapsed;
+        TerminalWebView.Visibility = _terminalSurfaceVisibilityBeforeSettings;
     }
 
     private void SettingsView_BackRequested(object? sender, EventArgs e)

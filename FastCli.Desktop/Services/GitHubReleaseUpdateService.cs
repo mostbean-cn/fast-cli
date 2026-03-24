@@ -245,20 +245,7 @@ public sealed class GitHubReleaseUpdateService
     {
         return string.IsNullOrWhiteSpace(release.ReleaseNotes)
             ? _localizer.Get("Update_NoReleaseNotes")
-            : TruncateReleaseNotes(release.ReleaseNotes);
-    }
-
-    private static string TruncateReleaseNotes(string releaseNotes)
-    {
-        const int maxLength = 600;
-        var normalized = releaseNotes.Replace("\r\n", "\n").Trim();
-
-        if (normalized.Length <= maxLength)
-        {
-            return normalized;
-        }
-
-        return $"{normalized[..maxLength].TrimEnd()}...";
+            : release.ReleaseNotes.Replace("\r\n", "\n").Trim();
     }
 
     private static string? NormalizeVersionText(string? versionText)

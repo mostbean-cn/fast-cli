@@ -204,14 +204,17 @@
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource SecondaryTextBrush}" />
 
-                        <ScrollViewer Grid.Row="1"
-                                      Margin="0,12,0,0"
-                                      MaxHeight="220"
-                                      VerticalScrollBarVisibility="Auto">
-                            <TextBlock Text="{Binding DetailsBody}"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SecondaryTextBrush}" />
-                        </ScrollViewer>
+                        <RichTextBox x:Name="DetailsRichTextBox"
+                                     Grid.Row="1"
+                                     Margin="0,12,0,0"
+                                     MaxHeight="220"
+                                     IsReadOnly="True"
+                                     IsDocumentEnabled="True"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     Foreground="{DynamicResource SecondaryTextBrush}"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Disabled" />
                     </Grid>
                 </Border>
 

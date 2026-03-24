@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using FastCli.Desktop.Services;
+using FastCli.Desktop.Utilities;
 
 namespace FastCli.Desktop.Views;
 
@@ -11,6 +12,7 @@ public partial class AppDialogWindow : Window
         InitializeComponent();
         Options = options;
         DataContext = options;
+        DetailsRichTextBox.Document = MarkdownFlowDocumentBuilder.Build(options.DetailsBody);
     }
 
     public AppDialogOptions Options { get; }
