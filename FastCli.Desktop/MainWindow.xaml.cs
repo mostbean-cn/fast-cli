@@ -795,6 +795,11 @@ public partial class MainWindow : Window
         await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
         await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
         await _terminalHost.SyncViewportAsync(reason, requestFocus, preserveBottom);
+
+        if (requestFocus)
+        {
+            TerminalWebView.Focus();
+        }
     }
 
     private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
