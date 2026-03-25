@@ -194,22 +194,22 @@
             <Setter Property="Height" Value="36" />
             <Setter Property="Padding" Value="0" />
         </Style>
-        <Style x:Key="SidebarHeaderToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Width" Value="32" />
-            <Setter Property="Height" Value="32" />
-            <Setter Property="MinHeight" Value="32" />
+        <Style x:Key="SidebarHeaderToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryBorderlessButton}">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinHeight" Value="28" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6">
+                                CornerRadius="7">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -226,6 +226,91 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+        <Style x:Key="SidebarSectionTitleTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="SidebarActionButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryBorderlessButton}">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+        <Style x:Key="SidebarCollapseButtonStyle" TargetType="Button" BasedOn="{StaticResource SidebarActionButtonStyle}">
+            <Setter Property="Margin" Value="6,0,0,0" />
+        </Style>
+        <Style x:Key="SidebarGroupListItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,1" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemRoot"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8">
+                            <Grid Height="36">
+                                <ContentPresenter Margin="12,0,10,0"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemRoot" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemRoot" Property="Background" Value="{DynamicResource SelectedItemBackgroundBrush}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SidebarCommandListItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,3" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemRoot"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="10,8">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemRoot" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemRoot" Property="Background" Value="{DynamicResource SelectedItemBackgroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SidebarRunButtonStyle" TargetType="Button" BasedOn="{StaticResource SidebarActionButtonStyle}">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="Margin" Value="10,0,0,0" />
+            <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
         </Style>
         <Style x:Key="ButtonGlyphTextStyle" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
@@ -446,18 +531,24 @@
                     <Button Click="ToggleSidebarCollapseButton_Click"
                             Style="{StaticResource SidebarHeaderToggleButtonStyle}"
                             ToolTip="{Binding SidebarToggleToolTip}"
-                            Margin="0,0,10,0">
+                            Margin="0,0,8,0">
                         <Grid Width="14" Height="14">
                             <Border BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
                                     BorderThickness="1"
-                                    CornerRadius="2" />
-                            <Border Width="1"
-                                    Margin="4,2,0,2"
+                                    CornerRadius="3" />
+                            <Border Width="3"
+                                    Margin="2,2,0,2"
                                     HorizontalAlignment="Left"
-                                    Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                    CornerRadius="1" />
+                            <Border Width="1"
+                                    Margin="6,2,0,2"
+                                    HorizontalAlignment="Left"
+                                    Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                    Opacity="0.45" />
                         </Grid>
                     </Button>
-                    <TextBlock Text="FastCli" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
+                    <TextBlock Text="FastCli" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
                 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -519,7 +610,7 @@
                                     </Style.Triggers>
                                 </Style>
                             </Grid.Style>
-                            <Grid Margin="12">
+                            <Grid Margin="12,14,12,14">
                                 <Grid.RowDefinitions>
                                     <RowDefinition x:Name="SidebarGroupsRowDefinition" Height="*" />
                                     <RowDefinition x:Name="SidebarSectionSplitterRowDefinition" Height="Auto" />
@@ -534,26 +625,24 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="{loc:Loc MainWindow_Groups}"
-                                                   FontWeight="Bold"
-                                                   Foreground="{DynamicResource SecondaryTextBrush}"
-                                                   VerticalAlignment="Center" />
+                                                   Style="{StaticResource SidebarSectionTitleTextStyle}" />
                                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                            <Button Click="AddGroupButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc MainWindow_NewGroupTooltip}">
-                                                <TextBlock Text="&#xE710;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            <Button Click="AddGroupButton_Click" Style="{StaticResource SidebarActionButtonStyle}" ToolTip="{loc:Loc MainWindow_NewGroupTooltip}">
+                                                <TextBlock Text="&#xE710;" FontSize="12" Style="{StaticResource ButtonGlyphTextStyle}" />
                                             </Button>
-                                            <Button Click="RenameGroupButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc Common_Rename}">
-                                                <TextBlock Text="&#xE70F;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            <Button Click="RenameGroupButton_Click" Style="{StaticResource SidebarActionButtonStyle}" ToolTip="{loc:Loc Common_Rename}">
+                                                <TextBlock Text="&#xE70F;" FontSize="12" Style="{StaticResource ButtonGlyphTextStyle}" />
                                             </Button>
-                                            <Button Click="DeleteGroupButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc Common_Delete}" Foreground="{DynamicResource DangerButtonBackgroundBrush}">
-                                                <TextBlock Text="&#xE74D;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            <Button Click="DeleteGroupButton_Click" Style="{StaticResource SidebarActionButtonStyle}" ToolTip="{loc:Loc Common_Delete}" Foreground="{DynamicResource DangerButtonBackgroundBrush}">
+                                                <TextBlock Text="&#xE74D;" FontSize="12" Style="{StaticResource ButtonGlyphTextStyle}" />
                                             </Button>
                                             <Button Click="ToggleGroupsSectionButton_Click"
-                                                    Style="{StaticResource SecondaryBorderlessButton}"
+                                                    Style="{StaticResource SidebarCollapseButtonStyle}"
                                                     ToolTip="{Binding GroupsSectionToggleToolTip}"
-                                                    Margin="8,0,0,0">
+                                                    Foreground="{DynamicResource SecondaryTextBrush}">
                                                 <TextBlock Text="{Binding GroupsSectionToggleGlyph}"
-                                                           FontSize="13"
-                                                           FontWeight="Bold"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
                                                            VerticalAlignment="Center"
                                                            HorizontalAlignment="Center" />
                                             </Button>
@@ -567,6 +656,8 @@
                                              Background="Transparent"
                                              Foreground="{DynamicResource PrimaryTextBrush}"
                                              BorderThickness="0"
+                                             ItemContainerStyle="{StaticResource SidebarGroupListItemStyle}"
+                                             Margin="0,2,0,0"
                                              PreviewMouseLeftButtonDown="GroupListBox_PreviewMouseLeftButtonDown"
                                              MouseMove="GroupListBox_MouseMove"
                                              Drop="GroupListBox_Drop"
@@ -599,26 +690,24 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="{loc:Loc MainWindow_Commands}"
-                                                   FontWeight="Bold"
-                                                   Foreground="{DynamicResource SecondaryTextBrush}"
-                                                   VerticalAlignment="Center" />
+                                                   Style="{StaticResource SidebarSectionTitleTextStyle}" />
                                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                            <Button Click="AddCommandButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc MainWindow_NewCommandTooltip}" IsEnabled="{Binding CanCreateCommand}">
-                                                <TextBlock Text="&#xE710;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            <Button Click="AddCommandButton_Click" Style="{StaticResource SidebarActionButtonStyle}" ToolTip="{loc:Loc MainWindow_NewCommandTooltip}" IsEnabled="{Binding CanCreateCommand}">
+                                                <TextBlock Text="&#xE710;" FontSize="12" Style="{StaticResource ButtonGlyphTextStyle}" />
                                             </Button>
-                                            <Button Click="DuplicateCommandButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc Common_Duplicate}" IsEnabled="{Binding CanEditCommand}">
-                                                <TextBlock Text="&#xE8C8;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            <Button Click="DuplicateCommandButton_Click" Style="{StaticResource SidebarActionButtonStyle}" ToolTip="{loc:Loc Common_Duplicate}" IsEnabled="{Binding CanEditCommand}">
+                                                <TextBlock Text="&#xE8C8;" FontSize="12" Style="{StaticResource ButtonGlyphTextStyle}" />
                                             </Button>
-                                            <Button Click="DeleteCommandButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc Common_Delete}" Foreground="{DynamicResource DangerButtonBackgroundBrush}" IsEnabled="{Binding CanEditCommand}">
-                                                <TextBlock Text="&#xE74D;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            <Button Click="DeleteCommandButton_Click" Style="{StaticResource SidebarActionButtonStyle}" ToolTip="{loc:Loc Common_Delete}" Foreground="{DynamicResource DangerButtonBackgroundBrush}" IsEnabled="{Binding CanEditCommand}">
+                                                <TextBlock Text="&#xE74D;" FontSize="12" Style="{StaticResource ButtonGlyphTextStyle}" />
                                             </Button>
                                             <Button Click="ToggleCommandsSectionButton_Click"
-                                                    Style="{StaticResource SecondaryBorderlessButton}"
+                                                    Style="{StaticResource SidebarCollapseButtonStyle}"
                                                     ToolTip="{Binding CommandsSectionToggleToolTip}"
-                                                    Margin="8,0,0,0">
+                                                    Foreground="{DynamicResource SecondaryTextBrush}">
                                                 <TextBlock Text="{Binding CommandsSectionToggleGlyph}"
-                                                           FontSize="13"
-                                                           FontWeight="Bold"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
                                                            VerticalAlignment="Center"
                                                            HorizontalAlignment="Center" />
                                             </Button>
@@ -631,6 +720,8 @@
                                              Background="Transparent"
                                              Foreground="{DynamicResource PrimaryTextBrush}"
                                              BorderThickness="0"
+                                             ItemContainerStyle="{StaticResource SidebarCommandListItemStyle}"
+                                             Margin="0,2,0,0"
                                              PreviewMouseLeftButtonDown="CommandListBox_PreviewMouseLeftButtonDown"
                                              MouseMove="CommandListBox_MouseMove"
                                              Drop="CommandListBox_Drop"
@@ -654,8 +745,8 @@
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel>
-                                                        <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" />
-                                                        <TextBlock FontSize="11" Foreground="{DynamicResource TertiaryTextBrush}" Margin="0,2,0,0">
+                                                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
+                                                        <TextBlock FontSize="10.5" Foreground="{DynamicResource TertiaryTextBrush}" Margin="0,1,0,0">
                                                             <TextBlock.Text>
                                                                 <MultiBinding Converter="{StaticResource ShellTypeDisplayConverter}">
                                                                     <Binding Path="ShellType" />
@@ -665,12 +756,11 @@
                                                         </TextBlock>
                                                     </StackPanel>
                                                     <Button Grid.Column="1"
-                                                            Margin="8,0,0,0"
-                                                            Padding="8,4"
+                                                            Padding="0"
                                                             ToolTip="{loc:Loc MainWindow_StartTooltip}"
                                                             Click="RunCommandFromListButton_Click"
-                                                            Style="{StaticResource SecondaryBorderlessButton}">
-                                                        <TextBlock Text="&#xE768;" FontSize="12" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                                            Style="{StaticResource SidebarRunButtonStyle}">
+                                                        <TextBlock Text="&#xE768;" FontSize="10" Style="{StaticResource ButtonGlyphTextStyle}" />
                                                     </Button>
                                                 </Grid>
                                             </DataTemplate>
