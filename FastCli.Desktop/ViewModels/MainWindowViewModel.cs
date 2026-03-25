@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Threading;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
-using FastCli.Application.Utilities;
 using FastCli.Desktop.Localization;
 using FastCli.Desktop.Mvvm;
 using FastCli.Desktop.Services;
@@ -32,20 +31,19 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly IFastCliAppService _appService;
     private readonly LocalizationManager _localization;
     private readonly SelectionStateStore _selectionStateStore;
-    private readonly StringBuilder _currentLogBuilder = new();
-    private readonly StringBuilder _currentTerminalTranscriptBuilder = new();
+    private readonly List<TerminalSessionItem> _terminalSessions = [];
     private Dictionary<Guid, IReadOnlyList<CommandProfile>> _commandsByGroup = new();
-    private CommandSession? _runningSession;
+    private TerminalSessionItem? _activeTerminalSession;
     private bool _isTerminalPanelVisible;
     private bool _isTerminalMaximized;
     private string _terminalSessionLabel = string.Empty;
     private string _terminalSessionStatus = string.Empty;
     private string _terminalInputStatus = string.Empty;
+    private string _internalTerminalSummaryText = string.Empty;
+    private string _openTerminalButtonText = string.Empty;
+    private string _openTerminalButtonToolTip = string.Empty;
     private string? _terminalSessionStatusKey;
     private string? _terminalInputStatusKey;
-    private ShellType? _activeTerminalShellType;
-    private string? _activeTerminalName;
-    private bool _activeTerminalIsCommandExecution;
     private bool _canSendTerminalInput;
     private bool _suppressPreviewRefresh;
     private bool _suppressSelectionPersistence;
@@ -82,6 +80,8 @@ public sealed class MainWindowViewModel : ObservableObject
         _localization.LanguageChanged += (_, _) => OnLanguageChanged();
         SetStatusMessage("MainWindow_StatusReady");
         SetTerminalStatusReady();
+        RefreshInternalTerminalSummary();
+        RefreshOpenTerminalEntry();
     }
 
     public event Action<string>? TerminalOutputAppended;
@@ -127,6 +127,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(CanRunCommand));
                 LoadEditorFromSelectedCommand();
                 _ = LoadExecutionHistoryAsync(value?.Id);
+                SyncTerminalPresentationForSelection();
                 PersistSelectionStateIfNeeded();
             }
         }
@@ -252,7 +253,7 @@ public sealed class MainWindowViewModel : ObservableObject
         private set => SetProperty(ref _currentLogText, value);
     }
 
-    public string CurrentTerminalRawText => _currentTerminalTranscriptBuilder.ToString();
+    public string CurrentTerminalRawText => _activeTerminalSession?.RawTranscriptText ?? string.Empty;
 
     public bool IsTerminalPanelVisible
     {
@@ -296,6 +297,24 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         get => _terminalInputStatus;
         private set => SetProperty(ref _terminalInputStatus, value);
+    }
+
+    public string InternalTerminalSummaryText
+    {
+        get => _internalTerminalSummaryText;
+        private set => SetProperty(ref _internalTerminalSummaryText, value);
+    }
+
+    public string OpenTerminalButtonText
+    {
+        get => _openTerminalButtonText;
+        private set => SetProperty(ref _openTerminalButtonText, value);
+    }
+
+    public string OpenTerminalButtonToolTip
+    {
+        get => _openTerminalButtonToolTip;
+        private set => SetProperty(ref _openTerminalButtonToolTip, value);
     }
 
     public bool IsExecutionRunning
@@ -350,11 +369,11 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public bool CanEditCommand => SelectedCommand is not null;
 
-    public bool CanRunCommand => SelectedCommand is not null && !IsExecutionRunning;
+    public bool CanRunCommand => SelectedCommand is not null;
 
-    public bool CanStopCommand => IsExecutionRunning;
+    public bool CanStopCommand => _activeTerminalSession?.IsRunning == true;
 
-    public bool CanOpenTerminal => !IsExecutionRunning;
+    public bool CanOpenTerminal => true;
 
     public bool CanToggleTerminalMaximize => IsTerminalPanelVisible;
 
@@ -364,7 +383,13 @@ public sealed class MainWindowViewModel : ObservableObject
         private set => SetProperty(ref _canSendTerminalInput, value);
     }
 
-    public bool CanClearTerminalOutput => !IsExecutionRunning && !string.IsNullOrEmpty(CurrentTerminalRawText);
+    public bool CanClearTerminalOutput => _activeTerminalSession is not null
+                                         && !_activeTerminalSession.IsRunning
+                                         && !string.IsNullOrEmpty(CurrentTerminalRawText);
+
+    public bool HasAdHocTerminal => GetAdHocTerminalSession() is not null;
+
+    public bool HasSuspendedAdHocTerminal => GetAdHocTerminalSession() is not null && _activeTerminalSession?.OwnerKind != TerminalSessionOwnerKind.AdHoc;
 
     public bool IsSidebarCollapsed
     {
@@ -447,7 +472,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public async Task SendTerminalInputAsync(string text)
     {
-        if (!CanSendTerminalInput || _runningSession?.SendInputAsync is null || string.IsNullOrEmpty(text))
+        if (!CanSendTerminalInput || _activeTerminalSession?.ExecutorSession?.SendInputAsync is null || string.IsNullOrEmpty(text))
         {
             return;
         }
@@ -455,7 +480,7 @@ public sealed class MainWindowViewModel : ObservableObject
         try
         {
             var bytes = Encoding.UTF8.GetBytes(text);
-            await _runningSession.SendInputAsync(bytes, CancellationToken.None);
+            await _activeTerminalSession.ExecutorSession.SendInputAsync(bytes, CancellationToken.None);
         }
         catch
         {
@@ -464,14 +489,14 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public async Task ResizeTerminalAsync(int cols, int rows)
     {
-        if (cols <= 0 || rows <= 0 || _runningSession?.ResizeAsync is null)
+        if (cols <= 0 || rows <= 0 || _activeTerminalSession?.ExecutorSession?.ResizeAsync is null)
         {
             return;
         }
 
         try
         {
-            await _runningSession.ResizeAsync(cols, rows, CancellationToken.None);
+            await _activeTerminalSession.ExecutorSession.ResizeAsync(cols, rows, CancellationToken.None);
         }
         catch
         {
@@ -480,52 +505,81 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public async Task OpenTerminalAsync(ShellType shellType)
     {
-        if (IsExecutionRunning)
+        var existingAdHocSession = GetAdHocTerminalSession();
+
+        if (existingAdHocSession is not null)
         {
-            SetStatusMessage("MainWindow_TerminalBusy");
+            ActivateTerminalSession(existingAdHocSession);
+            SetStatusMessage("MainWindow_TerminalResumed");
             return;
         }
 
-        ShowTerminalPanel();
-        ClearTerminalOutput();
-        SelectedHistoryRecord = null;
+        var terminalSession = CreateTerminalSession(
+            ownerKind: TerminalSessionOwnerKind.AdHoc,
+            shellType: shellType,
+            displayName: _localization.Get("MainWindow_TerminalSessionName"),
+            commandId: null);
+
+        ActivateTerminalSession(terminalSession);
 
         try
         {
             var session = await _appService.StartTerminalAsync(
                 shellType,
-                line => GetUiDispatcher().Invoke(() => AppendTerminalOutput(line.Text)));
+                line => GetUiDispatcher().Invoke(() => AppendSessionOutput(terminalSession, line.Text)));
 
-            ConfigureActiveTerminalSession(session, shellType, isCommandExecution: false, nameOverride: null);
+            terminalSession.Attach(session);
+            RefreshTerminalPresentation();
             SetStatusMessage("MainWindow_TerminalOpened", GetShellDisplayLabel(shellType));
-            _ = ObserveTerminalSessionAsync(session);
+            _ = ObserveTerminalSessionAsync(terminalSession);
         }
         catch (Exception ex)
         {
-            HideTerminalPanel(clearOutput: false);
-            SetTerminalStatusReady();
+            terminalSession.MarkClosed();
+            if (ReferenceEquals(_activeTerminalSession, terminalSession))
+            {
+                SyncTerminalPresentationForSelection();
+            }
+
+            RefreshInternalTerminalSummary();
+            RefreshOpenTerminalEntry();
             SetStatusMessage("MainWindow_ExecutionFailed", ex.Message);
         }
     }
 
     public async Task CloseTerminalPanelAsync()
     {
-        var runningSession = _runningSession;
+        var activeSession = _activeTerminalSession;
 
-        if (runningSession is not null)
+        if (activeSession is null)
+        {
+            return;
+        }
+
+        var canCloseSession = true;
+
+        if (activeSession.ExecutorSession is not null)
         {
             try
             {
-                await _appService.StopCommandAsync(runningSession);
+                await _appService.StopCommandAsync(activeSession.ExecutorSession);
             }
             catch (Exception ex)
             {
+                canCloseSession = false;
                 SetStatusMessageRaw(ex.Message);
             }
         }
 
-        ClearActiveSessionState(resetSessionLabel: true);
-        HideTerminalPanel(clearOutput: true);
+        if (!canCloseSession && activeSession.IsRunning)
+        {
+            return;
+        }
+
+        activeSession.MarkClosed();
+        RefreshInternalTerminalSummary();
+        RefreshOpenTerminalEntry();
+        SyncTerminalPresentationForSelection();
     }
 
     public void ToggleTerminalMaximize()
@@ -664,9 +718,7 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        ShowTerminalPanel();
-        ClearTerminalOutput();
-        SelectedHistoryRecord = null;
+        TerminalSessionItem? commandSession = null;
 
         try
         {
@@ -679,32 +731,61 @@ public sealed class MainWindowViewModel : ObservableObject
                 return;
             }
 
+            if (SelectedCommand.RunMode == CommandRunMode.ExternalTerminal)
+            {
+                var externalResult = await _appService.StartCommandAsync(
+                    SelectedCommand.Id,
+                    static _ => { });
+                SetStatusMessageRaw(externalResult.Record.Summary);
+                await LoadExecutionHistoryAsync(externalResult.Profile.Id);
+                return;
+            }
+
+            commandSession = CreateTerminalSession(
+                ownerKind: TerminalSessionOwnerKind.Command,
+                shellType: SelectedCommand.ShellType,
+                displayName: SelectedCommand.Name,
+                commandId: SelectedCommand.Id);
+
+            ActivateTerminalSession(commandSession);
+            SelectedHistoryRecord = null;
+
             var result = await _appService.StartCommandAsync(
                 SelectedCommand.Id,
-                line => GetUiDispatcher().Invoke(() => AppendTerminalOutput(line.Text)));
+                line => GetUiDispatcher().Invoke(() => AppendSessionOutput(commandSession, line.Text)));
 
             if (result.Session is null)
             {
+                commandSession.MarkClosed();
+                RefreshInternalTerminalSummary();
+                SyncTerminalPresentationForSelection();
                 SetStatusMessageRaw(result.Record.Summary);
                 await LoadExecutionHistoryAsync(result.Profile.Id);
                 return;
             }
 
-            ConfigureActiveTerminalSession(result.Session, SelectedCommand.ShellType, isCommandExecution: true, nameOverride: result.Profile.Name);
+            commandSession.Attach(result.Session);
+            RefreshTerminalPresentation();
             SetStatusMessage("MainWindow_StatusCommandStarted", result.Profile.Name);
 
-            _ = ObserveRunningSessionAsync(result.Profile.Id, result.Session);
+            _ = ObserveRunningSessionAsync(commandSession, result.Profile.Id);
         }
         catch (Exception ex)
         {
-            SetTerminalStatusReady();
+            if (commandSession is not null)
+            {
+                commandSession.MarkClosed();
+                RefreshInternalTerminalSummary();
+            }
+
+            SyncTerminalPresentationForSelection();
             SetStatusMessage("MainWindow_ExecutionFailed", ex.Message);
         }
     }
 
     public async Task StopExecutionAsync()
     {
-        if (_runningSession is null)
+        if (_activeTerminalSession?.ExecutorSession is null)
         {
             return;
         }
@@ -712,7 +793,7 @@ public sealed class MainWindowViewModel : ObservableObject
         await ExecuteWithStatusAsync(
             async () =>
             {
-                await _appService.StopCommandAsync(_runningSession);
+                await _appService.StopCommandAsync(_activeTerminalSession.ExecutorSession);
                 SetStatusMessage("MainWindow_StatusStopRequested");
             });
     }
@@ -780,7 +861,6 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         ClearTerminalOutput();
-        SetTerminalPresentationIdle();
         await Task.CompletedTask;
     }
 
@@ -790,6 +870,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
         var snapshot = await _appService.LoadWorkspaceAsync();
         _commandsByGroup = snapshot.CommandsByGroup.ToDictionary(static item => item.Key, static item => item.Value);
+        await PruneDetachedCommandSessionsAsync(snapshot.CommandsByGroup.Values.SelectMany(static items => items).Select(static command => command.Id).ToHashSet());
 
         ReplaceCollection(Groups, snapshot.Groups);
 
@@ -799,6 +880,7 @@ public sealed class MainWindowViewModel : ObservableObject
             Commands.Clear();
             SelectedCommand = null;
             ReplaceCollection(ExecutionHistory, snapshot.RecentExecutionRecords);
+            HideActiveTerminalPresentation();
             _suppressSelectionPersistence = false;
             PersistSelectionStateIfNeeded();
             return;
@@ -897,7 +979,7 @@ public sealed class MainWindowViewModel : ObservableObject
             var history = await _appService.GetRecentExecutionRecordsAsync(commandId, 20);
             ReplaceCollection(ExecutionHistory, history);
 
-            if (!IsExecutionRunning)
+            if (_activeTerminalSession?.IsRunning != true || _activeTerminalSession.CommandId != commandId)
             {
                 SelectedHistoryRecord = ExecutionHistory.FirstOrDefault();
             }
@@ -963,11 +1045,16 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
-    private async Task ObserveRunningSessionAsync(Guid commandId, CommandSession session)
+    private async Task ObserveRunningSessionAsync(TerminalSessionItem terminalSession, Guid commandId)
     {
         try
         {
-            var result = await session.Completion;
+            if (terminalSession.ExecutorSession is null)
+            {
+                return;
+            }
+
+            var result = await terminalSession.ExecutorSession.Completion;
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 SetStatusMessageRaw(result.Summary);
@@ -984,7 +1071,11 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                ClearActiveSessionState(resetSessionLabel: false);
+                terminalSession.MarkExited();
+                if (ReferenceEquals(_activeTerminalSession, terminalSession))
+                {
+                    RefreshTerminalPresentation();
+                }
             });
 
             var loadHistoryOperation = System.Windows.Application.Current.Dispatcher.InvokeAsync(() => LoadExecutionHistoryAsync(commandId));
@@ -992,16 +1083,19 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
-    private async Task ObserveTerminalSessionAsync(CommandSession session)
+    private async Task ObserveTerminalSessionAsync(TerminalSessionItem terminalSession)
     {
         try
         {
-            var result = await session.Completion;
+            if (terminalSession.ExecutorSession is null)
+            {
+                return;
+            }
+
+            var result = await terminalSession.ExecutorSession.Completion;
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 SetStatusMessageRaw(result.Summary);
-                SetTerminalSessionStatus("MainWindow_TerminalDisconnected");
-                SetTerminalInputStatus("MainWindow_TerminalInputDisabled");
             });
         }
         catch (Exception ex)
@@ -1009,38 +1103,50 @@ public sealed class MainWindowViewModel : ObservableObject
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 SetStatusMessage("MainWindow_ExecutionFailed", ex.Message);
-                SetTerminalSessionStatus("MainWindow_TerminalDisconnected");
-                SetTerminalInputStatus("MainWindow_TerminalInputDisabled");
             });
         }
         finally
         {
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                ClearActiveSessionState(resetSessionLabel: false);
+                terminalSession.MarkExited();
+                if (ReferenceEquals(_activeTerminalSession, terminalSession))
+                {
+                    RefreshTerminalPresentation();
+                }
             });
         }
     }
 
-    private void AppendTerminalOutput(string? text)
+    private void AppendSessionOutput(TerminalSessionItem terminalSession, string? text)
     {
         if (string.IsNullOrEmpty(text))
         {
             return;
         }
 
-        _currentTerminalTranscriptBuilder.Append(text);
-        _currentLogBuilder.Append(AnsiEscapeParser.StripAnsi(text));
-        CurrentLogText = _currentLogBuilder.ToString();
+        terminalSession.AppendOutput(text);
+
+        if (!ReferenceEquals(_activeTerminalSession, terminalSession))
+        {
+            return;
+        }
+
+        CurrentLogText = terminalSession.PlainTranscriptText;
+        OnPropertyChanged(nameof(CurrentTerminalRawText));
         OnPropertyChanged(nameof(CanClearTerminalOutput));
         TerminalOutputAppended?.Invoke(text);
     }
 
     private void ClearTerminalOutput()
     {
-        _currentTerminalTranscriptBuilder.Clear();
-        _currentLogBuilder.Clear();
+        if (_activeTerminalSession is not null)
+        {
+            _activeTerminalSession.ClearTranscript();
+        }
+
         CurrentLogText = string.Empty;
+        OnPropertyChanged(nameof(CurrentTerminalRawText));
         OnPropertyChanged(nameof(CanClearTerminalOutput));
         TerminalOutputReplaced?.Invoke(string.Empty);
     }
@@ -1063,6 +1169,8 @@ public sealed class MainWindowViewModel : ObservableObject
         RefreshStatusMessage();
         RefreshPreviewSafe();
         RefreshTerminalStatus();
+        RefreshInternalTerminalSummary();
+        RefreshOpenTerminalEntry();
         OnPropertyChanged(nameof(TerminalMaximizeButtonText));
         OnPropertyChanged(nameof(TerminalMaximizeToolTip));
         OnPropertyChanged(nameof(SidebarToggleToolTip));
@@ -1137,55 +1245,143 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
-    private void ConfigureActiveTerminalSession(CommandSession session, ShellType shellType, bool isCommandExecution, string? nameOverride)
+    private TerminalSessionItem CreateTerminalSession(
+        TerminalSessionOwnerKind ownerKind,
+        ShellType shellType,
+        string displayName,
+        Guid? commandId)
     {
-        _runningSession = session;
-        _activeTerminalShellType = shellType;
-        _activeTerminalIsCommandExecution = isCommandExecution;
-        _activeTerminalName = nameOverride;
-        IsExecutionRunning = true;
-        RefreshTerminalSessionLabel();
-        SetTerminalSessionStatus("MainWindow_TerminalConnected");
-        SetTerminalInputStatus(session.IsInteractive
-            ? "MainWindow_TerminalInputEnabled"
-            : "MainWindow_TerminalInputDisabled");
-        CanSendTerminalInput = session.IsInteractive;
+        var terminalSession = new TerminalSessionItem(ownerKind, shellType, displayName, commandId);
+        _terminalSessions.Add(terminalSession);
+        RefreshInternalTerminalSummary();
+        RefreshOpenTerminalEntry();
+        return terminalSession;
     }
 
-    private void ClearActiveSessionState(bool resetSessionLabel)
+    private TerminalSessionItem? GetAdHocTerminalSession()
     {
-        _runningSession = null;
+        return _terminalSessions.LastOrDefault(session => session.OwnerKind == TerminalSessionOwnerKind.AdHoc && !session.IsClosed);
+    }
+
+    private TerminalSessionItem? GetLatestCommandTerminalSession(Guid commandId)
+    {
+        return _terminalSessions.LastOrDefault(session =>
+            session.OwnerKind == TerminalSessionOwnerKind.Command
+            && session.CommandId == commandId
+            && !session.IsClosed);
+    }
+
+    public Task ResumeAdHocTerminalAsync()
+    {
+        var adHocSession = GetAdHocTerminalSession();
+
+        if (adHocSession is not null)
+        {
+            ActivateTerminalSession(adHocSession);
+            SetStatusMessage("MainWindow_TerminalResumed");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public async Task CloseAllInternalTerminalsAsync()
+    {
+        var sessionsToStop = _terminalSessions
+            .Where(session => !session.IsClosed && session.ExecutorSession is not null)
+            .Select(session => session.ExecutorSession!)
+            .ToList();
+
+        if (sessionsToStop.Count == 0)
+        {
+            return;
+        }
+
+        await Task.WhenAll(
+            sessionsToStop.Select(
+                async session =>
+                {
+                    try
+                    {
+                        await _appService.StopCommandAsync(session);
+                    }
+                    catch
+                    {
+                    }
+                }));
+    }
+
+    private void ActivateTerminalSession(TerminalSessionItem terminalSession)
+    {
+        _activeTerminalSession = terminalSession;
+        RefreshTerminalPresentation();
+    }
+
+    private void SyncTerminalPresentationForSelection()
+    {
+        if (SelectedCommand is null)
+        {
+            HideActiveTerminalPresentation();
+            return;
+        }
+
+        var commandSession = GetLatestCommandTerminalSession(SelectedCommand.Id);
+
+        if (commandSession is null)
+        {
+            HideActiveTerminalPresentation();
+            return;
+        }
+
+        ActivateTerminalSession(commandSession);
+    }
+
+    private void HideActiveTerminalPresentation()
+    {
+        _activeTerminalSession = null;
+        CurrentLogText = string.Empty;
         IsExecutionRunning = false;
         CanSendTerminalInput = false;
-        SetTerminalSessionStatus("MainWindow_TerminalDisconnected");
-        SetTerminalInputStatus("MainWindow_TerminalInputDisabled");
+        HideTerminalPanel(clearOutput: false);
+        SetTerminalStatusReady();
+        OnPropertyChanged(nameof(CurrentTerminalRawText));
+        OnPropertyChanged(nameof(CanStopCommand));
+        OnPropertyChanged(nameof(CanClearTerminalOutput));
+        RefreshOpenTerminalEntry();
+        TerminalOutputReplaced?.Invoke(string.Empty);
+    }
 
-        if (resetSessionLabel)
+    private void RefreshTerminalPresentation()
+    {
+        if (_activeTerminalSession is null)
         {
-            SetTerminalStatusReady();
+            HideActiveTerminalPresentation();
             return;
         }
 
-        SetTerminalPresentationIdle();
+        ShowTerminalPanel();
+        CurrentLogText = _activeTerminalSession.PlainTranscriptText;
+        IsExecutionRunning = _activeTerminalSession.IsRunning;
+        CanSendTerminalInput = _activeTerminalSession.IsInteractive;
+        SetTerminalSessionLabel(_activeTerminalSession);
+        SetTerminalSessionStatus(_activeTerminalSession.IsRunning
+            ? "MainWindow_TerminalConnected"
+            : "MainWindow_TerminalDisconnected");
+        SetTerminalInputStatus(_activeTerminalSession.IsInteractive && _activeTerminalSession.IsRunning
+            ? "MainWindow_TerminalInputEnabled"
+            : "MainWindow_TerminalInputDisabled");
+        OnPropertyChanged(nameof(CurrentTerminalRawText));
+        OnPropertyChanged(nameof(CanStopCommand));
+        OnPropertyChanged(nameof(CanClearTerminalOutput));
+        RefreshOpenTerminalEntry();
+        TerminalOutputReplaced?.Invoke(_activeTerminalSession.RawTranscriptText);
     }
 
-    private void SetTerminalSessionLabel(ShellType shellType, bool isCommandExecution, string? nameOverride)
+    private void SetTerminalSessionLabel(TerminalSessionItem terminalSession)
     {
-        var shellLabel = GetShellDisplayLabel(shellType);
-        TerminalSessionLabel = isCommandExecution
-            ? _localization.Format("MainWindow_TerminalCommandSessionLabel", nameOverride ?? shellLabel, shellLabel)
+        var shellLabel = GetShellDisplayLabel(terminalSession.ShellType);
+        TerminalSessionLabel = terminalSession.OwnerKind == TerminalSessionOwnerKind.Command
+            ? _localization.Format("MainWindow_TerminalCommandSessionLabel", terminalSession.DisplayName, shellLabel)
             : _localization.Format("MainWindow_TerminalSessionLabel", shellLabel);
-    }
-
-    private void RefreshTerminalSessionLabel()
-    {
-        if (_activeTerminalShellType.HasValue)
-        {
-            SetTerminalSessionLabel(_activeTerminalShellType.Value, _activeTerminalIsCommandExecution, _activeTerminalName);
-            return;
-        }
-
-        TerminalSessionLabel = _localization.Get("MainWindow_TerminalPanelReady");
     }
 
     private string GetShellDisplayLabel(ShellType shellType)
@@ -1214,9 +1410,6 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void SetTerminalStatusReady()
     {
-        _activeTerminalShellType = null;
-        _activeTerminalIsCommandExecution = false;
-        _activeTerminalName = null;
         CanSendTerminalInput = false;
         TerminalSessionLabel = _localization.Get("MainWindow_TerminalPanelReady");
         SetTerminalSessionStatus("MainWindow_TerminalDisconnected");
@@ -1225,17 +1418,82 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void SetTerminalPresentationIdle()
     {
-        _activeTerminalShellType = null;
-        _activeTerminalIsCommandExecution = false;
-        _activeTerminalName = null;
         CanSendTerminalInput = false;
         TerminalSessionLabel = _localization.Get("MainWindow_TerminalPanelIdle");
         SetTerminalSessionStatus("MainWindow_TerminalDisconnected");
         SetTerminalInputStatus("MainWindow_TerminalInputDisabled");
     }
 
+    private void RefreshInternalTerminalSummary()
+    {
+        var count = _terminalSessions.Count(session => !session.IsClosed);
+        InternalTerminalSummaryText = count > 0
+            ? _localization.Format("MainWindow_InternalTerminalSummary", count)
+            : _localization.Get("MainWindow_NoInternalTerminalSummary");
+    }
+
+    private void RefreshOpenTerminalEntry()
+    {
+        OnPropertyChanged(nameof(HasAdHocTerminal));
+        OnPropertyChanged(nameof(HasSuspendedAdHocTerminal));
+
+        if (HasSuspendedAdHocTerminal)
+        {
+            OpenTerminalButtonText = _localization.Get("MainWindow_TerminalSuspended");
+            OpenTerminalButtonToolTip = _localization.Get("MainWindow_TerminalSuspendedTooltip");
+            return;
+        }
+
+        OpenTerminalButtonText = _localization.Get("MainWindow_OpenTerminal");
+        OpenTerminalButtonToolTip = _localization.Get("MainWindow_OpenTerminalTooltip");
+    }
+
+    private async Task PruneDetachedCommandSessionsAsync(HashSet<Guid> activeCommandIds)
+    {
+        var needsResync = false;
+
+        foreach (var terminalSession in _terminalSessions.Where(session =>
+                     session.OwnerKind == TerminalSessionOwnerKind.Command
+                     && session.CommandId.HasValue
+                     && !activeCommandIds.Contains(session.CommandId.Value)
+                     && !session.IsClosed).ToList())
+        {
+            if (terminalSession.ExecutorSession is not null)
+            {
+                try
+                {
+                    await _appService.StopCommandAsync(terminalSession.ExecutorSession);
+                }
+                catch
+                {
+                }
+            }
+
+            terminalSession.MarkClosed();
+
+            if (ReferenceEquals(_activeTerminalSession, terminalSession))
+            {
+                needsResync = true;
+            }
+        }
+
+        RefreshInternalTerminalSummary();
+        RefreshOpenTerminalEntry();
+
+        if (needsResync)
+        {
+            HideActiveTerminalPresentation();
+        }
+    }
+
     private void RefreshTerminalStatus()
     {
+        if (_activeTerminalSession is not null)
+        {
+            RefreshTerminalPresentation();
+            return;
+        }
+
         if (_terminalSessionStatusKey is not null)
         {
             TerminalSessionStatus = _localization.Get(_terminalSessionStatusKey);
@@ -1246,7 +1504,7 @@ public sealed class MainWindowViewModel : ObservableObject
             TerminalInputStatus = _localization.Get(_terminalInputStatusKey);
         }
 
-        RefreshTerminalSessionLabel();
+        RefreshOpenTerminalEntry();
     }
 
     private void PersistSelectionStateIfNeeded()

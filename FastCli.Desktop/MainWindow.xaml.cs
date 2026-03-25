@@ -31,6 +31,7 @@ public partial class MainWindow : Window
     private GridLength _sidebarRestoreWidth = new(280);
     private GridLength _sidebarGroupsRestoreHeight = new(1, GridUnitType.Star);
     private GridLength _sidebarCommandsRestoreHeight = new(1.5, GridUnitType.Star);
+    private bool _isClosingInternally;
 
     public MainWindow(MainWindowViewModel viewModel, GitHubReleaseUpdateService updateService)
     {
@@ -47,6 +48,7 @@ public partial class MainWindow : Window
             DispatcherPriority.Background,
             TerminalViewportSyncTimer_Tick,
             Dispatcher);
+        Closing += MainWindow_Closing;
         Activated += MainWindow_Activated;
         SizeChanged += MainWindow_SizeChanged;
         StateChanged += MainWindow_StateChanged;
@@ -434,8 +436,15 @@ public partial class MainWindow : Window
         ShowSettingsPage();
     }
 
-    private void OpenTerminalButton_Click(object sender, RoutedEventArgs e)
+    private async void OpenTerminalButton_Click(object sender, RoutedEventArgs e)
     {
+        if (ViewModel.HasAdHocTerminal)
+        {
+            await ViewModel.ResumeAdHocTerminalAsync();
+            await EnsureTerminalViewportReadyAsync("resume-ad-hoc-terminal", requestFocus: true);
+            return;
+        }
+
         if (sender is not Button button || button.ContextMenu is null)
         {
             return;
@@ -505,6 +514,26 @@ public partial class MainWindow : Window
     private void SettingsView_BackRequested(object? sender, EventArgs e)
     {
         HideSettingsPage();
+    }
+
+    private async void MainWindow_Closing(object? sender, CancelEventArgs e)
+    {
+        if (_isClosingInternally)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        _isClosingInternally = true;
+
+        try
+        {
+            await ViewModel.CloseAllInternalTerminalsAsync();
+        }
+        finally
+        {
+            Close();
+        }
     }
 
     private async Task InitializeTerminalAsync()
