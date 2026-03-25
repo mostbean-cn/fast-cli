@@ -11,11 +11,14 @@
   let isComposing = false;
   let hasTerminalFocus = false;
   let pendingViewportSync = null;
+  let pendingWriteChunks = [];
+  let writeFlushScheduled = false;
+  let writeIdleTimer = 0;
 
   const terminal = new Terminal({
     allowTransparency: false,
     convertEol: false,
-    cursorBlink: true,
+    cursorBlink: false,
     cursorInactiveStyle: 'outline',
     drawBoldTextInBrightColors: true,
     fontFamily: '"Cascadia Mono", Consolas, monospace',
@@ -90,6 +93,45 @@
     return Math.abs(buffer.baseY - buffer.viewportY) <= 1;
   };
 
+  const showCursorAfterIdle = () => {
+    if (writeIdleTimer) {
+      window.clearTimeout(writeIdleTimer);
+    }
+
+    writeIdleTimer = window.setTimeout(() => {
+      writeIdleTimer = 0;
+      root.classList.remove('fast-output');
+    }, 80);
+  };
+
+  const flushPendingWrites = () => {
+    writeFlushScheduled = false;
+
+    if (pendingWriteChunks.length === 0) {
+      return;
+    }
+
+    root.classList.add('fast-output');
+
+    const merged = pendingWriteChunks.join('');
+    pendingWriteChunks = [];
+
+    if (merged.length > 0) {
+      terminal.write(merged);
+    }
+
+    showCursorAfterIdle();
+  };
+
+  const bufferWrite = data => {
+    pendingWriteChunks.push(data);
+
+    if (!writeFlushScheduled) {
+      writeFlushScheduled = true;
+      window.requestAnimationFrame(flushPendingWrites);
+    }
+  };
+
   const executeViewportSync = request => {
     if (!root || root.clientWidth === 0 || root.clientHeight === 0) {
       return;
@@ -101,8 +143,6 @@
     if (shouldStickBottom) {
       terminal.scrollToBottom();
     }
-
-    terminal.refresh(0, Math.max(terminal.rows - 1, 0));
 
     if (request.requestFocus && !isComposing) {
       terminal.focus();
@@ -233,7 +273,7 @@
     },
     write(data) {
       if (typeof data === 'string' && data.length > 0) {
-        terminal.write(data);
+        bufferWrite(data);
       }
     },
     syncViewport(options) {
