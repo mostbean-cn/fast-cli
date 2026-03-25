@@ -31,6 +31,9 @@
     <SolidColorBrush x:Key="SecondaryButtonBackgroundBrush" Color="#252B33" />
     <SolidColorBrush x:Key="SecondaryButtonHoverBrush" Color="#303741" />
     <SolidColorBrush x:Key="SecondaryButtonForegroundBrush" Color="#F5F7FA" />
+    <SolidColorBrush x:Key="ImmersiveTerminalBadgeBrush" Color="#20252C" />
+    <SolidColorBrush x:Key="ImmersiveTerminalBadgeActiveBrush" Color="#5C3A1B" />
+    <SolidColorBrush x:Key="ImmersiveTerminalBadgeActiveForegroundBrush" Color="#FFD4A3" />
     
     <!-- 危险操作按钮 (红色系) -->
     <SolidColorBrush x:Key="DangerButtonBackgroundBrush" Color="#D75B66" />

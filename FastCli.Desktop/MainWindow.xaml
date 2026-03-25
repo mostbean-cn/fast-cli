@@ -218,6 +218,44 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="TerminalStatusInlineButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryBorderlessButton}">
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="Background" Value="{DynamicResource ImmersiveTerminalBadgeBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="999"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.92" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Opacity" Value="0.82" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding DataContext.IsImmersiveTerminalMode, RelativeSource={RelativeSource Self}}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ImmersiveTerminalBadgeActiveBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource ImmersiveTerminalBadgeActiveForegroundBrush}" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="SidebarHeaderToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryBorderlessButton}">
             <Setter Property="Width" Value="28" />
             <Setter Property="Height" Value="28" />
@@ -540,12 +578,15 @@
     
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="50" />
+            <RowDefinition x:Name="HeaderRowDefinition" Height="50" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         
         <!-- Header -->
-        <Border Background="{DynamicResource TitleBarBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,0,0,1">
+        <Border x:Name="HeaderContainerBorder"
+                Background="{DynamicResource TitleBarBackgroundBrush}"
+                BorderBrush="{DynamicResource PanelBorderBrush}"
+                BorderThickness="0,0,0,1">
             <Grid Margin="16,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -1177,7 +1218,7 @@
                     </Grid.RowDefinitions>
                     
                     <Border BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,1,0,1">
-                        <DockPanel Margin="16,8">
+                        <DockPanel Margin="14,5">
                             <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{loc:Loc MainWindow_TerminalOutput}" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" FontFamily="Consolas" />
@@ -1194,6 +1235,17 @@
                                     <Border Background="{DynamicResource ControlBackgroundBrush}" CornerRadius="999" Padding="8,2" Margin="8,0,0,0">
                                         <TextBlock Text="{Binding TerminalInputStatus}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
                                     </Border>
+                                    <Button Click="ToggleImmersiveTerminalButton_Click"
+                                            IsEnabled="{Binding CanToggleImmersiveTerminal}"
+                                            Style="{StaticResource TerminalStatusInlineButtonStyle}"
+                                            ToolTip="{Binding ImmersiveTerminalButtonToolTip}"
+                                            Margin="8,0,0,0"
+                                            Padding="8,2">
+                                        <TextBlock Text="{loc:Loc MainWindow_TerminalImmersiveEnter}"
+                                                   FontSize="11"
+                                                   Margin="0,-1,0,0"
+                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    </Button>
                                 </StackPanel>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">

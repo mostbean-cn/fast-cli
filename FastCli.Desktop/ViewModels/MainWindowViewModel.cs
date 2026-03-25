@@ -50,6 +50,9 @@ public sealed class MainWindowViewModel : ObservableObject
     private bool _isSidebarCollapsed;
     private bool _isGroupsSectionCollapsed;
     private bool _isCommandsSectionCollapsed;
+    private bool _isImmersiveTerminalMode;
+    private bool _sidebarCollapsedBeforeImmersive;
+    private bool _terminalMaximizedBeforeImmersive;
 
     private CommandGroup? _selectedGroup;
     private CommandProfile? _selectedCommand;
@@ -263,6 +266,7 @@ public sealed class MainWindowViewModel : ObservableObject
             if (SetProperty(ref _isTerminalPanelVisible, value))
             {
                 OnPropertyChanged(nameof(CanToggleTerminalMaximize));
+                OnPropertyChanged(nameof(CanToggleImmersiveTerminal));
             }
         }
     }
@@ -315,6 +319,19 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         get => _openTerminalButtonToolTip;
         private set => SetProperty(ref _openTerminalButtonToolTip, value);
+    }
+
+    public bool IsImmersiveTerminalMode
+    {
+        get => _isImmersiveTerminalMode;
+        private set
+        {
+            if (SetProperty(ref _isImmersiveTerminalMode, value))
+            {
+                OnPropertyChanged(nameof(ImmersiveTerminalButtonText));
+                OnPropertyChanged(nameof(ImmersiveTerminalButtonToolTip));
+            }
+        }
     }
 
     public bool IsExecutionRunning
@@ -376,6 +393,8 @@ public sealed class MainWindowViewModel : ObservableObject
     public bool CanOpenTerminal => true;
 
     public bool CanToggleTerminalMaximize => IsTerminalPanelVisible;
+
+    public bool CanToggleImmersiveTerminal => IsTerminalPanelVisible;
 
     public bool CanSendTerminalInput
     {
@@ -488,6 +507,16 @@ public sealed class MainWindowViewModel : ObservableObject
             ? "MainWindow_TerminalRestoreTooltip"
             : "MainWindow_TerminalMaximizeTooltip");
 
+    public string ImmersiveTerminalButtonText => _localization.Get(
+        IsImmersiveTerminalMode
+            ? "MainWindow_TerminalImmersiveExit"
+            : "MainWindow_TerminalImmersiveEnter");
+
+    public string ImmersiveTerminalButtonToolTip => _localization.Get(
+        IsImmersiveTerminalMode
+            ? "MainWindow_TerminalImmersiveExitTooltip"
+            : "MainWindow_TerminalImmersiveEnterTooltip");
+
     private static readonly IReadOnlyList<OptionItem<ShellType>> TerminalShellTypeOptions =
     [
         new() { Value = ShellType.Cmd, Label = string.Empty },
@@ -593,6 +622,26 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         IsTerminalMaximized = !IsTerminalMaximized;
+    }
+
+    public void ToggleImmersiveTerminalMode()
+    {
+        if (!IsTerminalPanelVisible)
+        {
+            return;
+        }
+
+        if (IsImmersiveTerminalMode)
+        {
+            ExitImmersiveTerminalMode();
+            return;
+        }
+
+        _sidebarCollapsedBeforeImmersive = IsSidebarCollapsed;
+        _terminalMaximizedBeforeImmersive = IsTerminalMaximized;
+        IsImmersiveTerminalMode = true;
+        IsSidebarCollapsed = true;
+        IsTerminalMaximized = true;
     }
 
     public async Task LoadAsync()
@@ -1185,6 +1234,8 @@ public sealed class MainWindowViewModel : ObservableObject
         RefreshOpenTerminalEntry();
         OnPropertyChanged(nameof(TerminalMaximizeButtonText));
         OnPropertyChanged(nameof(TerminalMaximizeToolTip));
+        OnPropertyChanged(nameof(ImmersiveTerminalButtonText));
+        OnPropertyChanged(nameof(ImmersiveTerminalButtonToolTip));
         OnPropertyChanged(nameof(SidebarToggleToolTip));
         OnPropertyChanged(nameof(GroupsSectionToggleToolTip));
         OnPropertyChanged(nameof(CommandsSectionToggleToolTip));
@@ -1375,6 +1426,8 @@ public sealed class MainWindowViewModel : ObservableObject
 
         if (ReferenceEquals(_activeTerminalSession, terminalSession))
         {
+            ExitImmersiveTerminalMode();
+
             if (terminalSession.OwnerKind == TerminalSessionOwnerKind.Command && terminalSession.CommandId.HasValue)
             {
                 SyncTerminalPresentationForSelection();
@@ -1468,6 +1521,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void HideActiveTerminalPresentation()
     {
+        ExitImmersiveTerminalMode();
         _activeTerminalSession = null;
         CurrentLogText = string.Empty;
         IsExecutionRunning = false;
@@ -1597,6 +1651,18 @@ public sealed class MainWindowViewModel : ObservableObject
 
         OpenTerminalButtonText = _localization.Get("MainWindow_OpenTerminal");
         OpenTerminalButtonToolTip = _localization.Get("MainWindow_OpenTerminalTooltip");
+    }
+
+    private void ExitImmersiveTerminalMode()
+    {
+        if (!IsImmersiveTerminalMode)
+        {
+            return;
+        }
+
+        IsImmersiveTerminalMode = false;
+        IsSidebarCollapsed = _sidebarCollapsedBeforeImmersive;
+        IsTerminalMaximized = _terminalMaximizedBeforeImmersive;
     }
 
     private async Task PruneDetachedCommandSessionsAsync(HashSet<Guid> activeCommandIds)

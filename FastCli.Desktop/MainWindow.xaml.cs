@@ -63,6 +63,7 @@ public partial class MainWindow : Window
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         ApplyTerminalPanelLayout(ViewModel.IsTerminalPanelVisible, ViewModel.IsTerminalMaximized);
+        ApplyImmersiveLayout();
         ApplySidebarLayout();
         await InitializeTerminalAsync();
         await ViewModel.LoadAsync();
@@ -514,6 +515,12 @@ public partial class MainWindow : Window
         await EnsureTerminalViewportReadyAsync("switch-next-terminal-session");
     }
 
+    private async void ToggleImmersiveTerminalButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.ToggleImmersiveTerminalMode();
+        await EnsureTerminalViewportReadyAsync("toggle-terminal-immersive");
+    }
+
     private async void ToggleTerminalMaximizeButton_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel.IsTerminalPanelVisible && !ViewModel.IsTerminalMaximized)
@@ -610,12 +617,35 @@ public partial class MainWindow : Window
             }
         }
 
+        if (e.PropertyName == nameof(MainWindowViewModel.IsImmersiveTerminalMode))
+        {
+            ApplyImmersiveLayout();
+
+            if (ViewModel.IsTerminalPanelVisible)
+            {
+                await EnsureTerminalViewportReadyAsync("terminal-immersive-layout");
+            }
+        }
+
         if (e.PropertyName == nameof(MainWindowViewModel.IsSidebarCollapsed)
             || e.PropertyName == nameof(MainWindowViewModel.IsGroupsSectionCollapsed)
             || e.PropertyName == nameof(MainWindowViewModel.IsCommandsSectionCollapsed))
         {
             ApplySidebarLayout();
         }
+    }
+
+    private void ApplyImmersiveLayout()
+    {
+        if (ViewModel.IsImmersiveTerminalMode)
+        {
+            HeaderContainerBorder.Visibility = Visibility.Collapsed;
+            HeaderRowDefinition.Height = new GridLength(0);
+            return;
+        }
+
+        HeaderContainerBorder.Visibility = Visibility.Visible;
+        HeaderRowDefinition.Height = new GridLength(50);
     }
 
     private void CaptureSidebarWidth()
