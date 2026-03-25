@@ -63,6 +63,7 @@ public partial class MainWindow : Window
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         ApplyTerminalPanelLayout(ViewModel.IsTerminalPanelVisible, ViewModel.IsTerminalMaximized);
+        ApplyTerminalHeaderLayout();
         ApplyImmersiveLayout();
         ApplySidebarLayout();
         await InitializeTerminalAsync();
@@ -472,7 +473,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        InternalTerminalSessionsPopup.IsOpen = !InternalTerminalSessionsPopup.IsOpen;
+        if (sender is not UIElement placementTarget)
+        {
+            return;
+        }
+
+        var sameTarget = Equals(InternalTerminalSessionsPopup.PlacementTarget, placementTarget);
+        InternalTerminalSessionsPopup.PlacementTarget = placementTarget;
+        InternalTerminalSessionsPopup.IsOpen = sameTarget ? !InternalTerminalSessionsPopup.IsOpen : true;
     }
 
     private async void ActivateInternalTerminalSessionButton_Click(object sender, RoutedEventArgs e)
@@ -513,6 +521,12 @@ public partial class MainWindow : Window
     {
         ViewModel.SwitchToNextCommandTerminalSession();
         await EnsureTerminalViewportReadyAsync("switch-next-terminal-session");
+    }
+
+    private async void ToggleTerminalSessionSwitcherScopeButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.ToggleTerminalSessionSwitcherScope();
+        await EnsureTerminalViewportReadyAsync("toggle-terminal-session-switcher-scope");
     }
 
     private async void ToggleImmersiveTerminalButton_Click(object sender, RoutedEventArgs e)
@@ -620,6 +634,7 @@ public partial class MainWindow : Window
         if (e.PropertyName == nameof(MainWindowViewModel.IsImmersiveTerminalMode))
         {
             ApplyImmersiveLayout();
+            ApplyTerminalHeaderLayout();
 
             if (ViewModel.IsTerminalPanelVisible)
             {
@@ -646,6 +661,17 @@ public partial class MainWindow : Window
 
         HeaderContainerBorder.Visibility = Visibility.Visible;
         HeaderRowDefinition.Height = new GridLength(50);
+    }
+
+    private void ApplyTerminalHeaderLayout()
+    {
+        TerminalHeaderDockPanel.Margin = ViewModel.IsImmersiveTerminalMode
+            ? new Thickness(12, 3, 12, 3)
+            : new Thickness(14, 5, 14, 5);
+
+        TerminalHeaderRowDefinition.Height = ViewModel.IsImmersiveTerminalMode
+            ? new GridLength(36)
+            : new GridLength(56);
     }
 
     private void CaptureSidebarWidth()

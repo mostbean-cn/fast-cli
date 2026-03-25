@@ -53,6 +53,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private bool _isImmersiveTerminalMode;
     private bool _sidebarCollapsedBeforeImmersive;
     private bool _terminalMaximizedBeforeImmersive;
+    private bool _isGlobalTerminalSwitcherMode;
 
     private CommandGroup? _selectedGroup;
     private CommandProfile? _selectedCommand;
@@ -414,22 +415,33 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public bool HasAnyInternalTerminalSession => _terminalSessions.Any(session => !session.IsClosed);
 
-    public bool IsCommandTerminalSwitcherVisible => GetActiveCommandTerminalSessions().Count > 1;
+    public bool IsCommandTerminalSwitcherVisible => _activeTerminalSession is not null
+        && GetAllVisibleInternalTerminalSessions().Count > 1;
 
-    public bool CanSwitchToPreviousCommandTerminalSession => TryGetActiveCommandTerminalSessionPosition(out var index, out _) && index > 0;
+    public bool CanSwitchToPreviousCommandTerminalSession => TryGetCurrentSwitcherSessionPosition(out var index, out _) && index > 0;
 
-    public bool CanSwitchToNextCommandTerminalSession => TryGetActiveCommandTerminalSessionPosition(out var index, out var count) && index < count - 1;
+    public bool CanSwitchToNextCommandTerminalSession => TryGetCurrentSwitcherSessionPosition(out var index, out var count) && index < count - 1;
 
     public string CommandTerminalSessionSwitcherText
     {
         get
         {
-            if (!TryGetActiveCommandTerminalSessionPosition(out var index, out var count))
+            if (_isGlobalTerminalSwitcherMode)
+            {
+                if (!TryGetCurrentSwitcherSessionPosition(out var index, out var count))
+                {
+                    return string.Empty;
+                }
+
+                return _localization.Format("MainWindow_GlobalTerminalSessionSwitcher", index + 1, count);
+            }
+
+            if (!TryGetActiveCommandTerminalSessionPositionForDisplay(out var activeCommandIndex, out var activeCommandCount))
             {
                 return string.Empty;
             }
 
-            return _localization.Format("MainWindow_CommandTerminalSessionSwitcher", index + 1, count);
+            return _localization.Format("MainWindow_CommandTerminalSessionSwitcher", activeCommandIndex + 1, activeCommandCount);
         }
     }
 
@@ -572,7 +584,8 @@ public sealed class MainWindowViewModel : ObservableObject
             ownerKind: TerminalSessionOwnerKind.AdHoc,
             shellType: shellType,
             displayName: _localization.Get("MainWindow_TerminalSessionName"),
-            commandId: null);
+            commandId: null,
+            groupName: null);
 
         ActivateTerminalSession(terminalSession);
 
@@ -797,7 +810,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 ownerKind: TerminalSessionOwnerKind.Command,
                 shellType: SelectedCommand.ShellType,
                 displayName: SelectedCommand.Name,
-                commandId: SelectedCommand.Id);
+                commandId: SelectedCommand.Id,
+                groupName: SelectedGroup?.Name);
 
             ActivateTerminalSession(commandSession);
             IsTerminalMaximized = true;
@@ -1312,9 +1326,10 @@ public sealed class MainWindowViewModel : ObservableObject
         TerminalSessionOwnerKind ownerKind,
         ShellType shellType,
         string displayName,
-        Guid? commandId)
+        Guid? commandId,
+        string? groupName = null)
     {
-        var terminalSession = new TerminalSessionItem(ownerKind, shellType, displayName, commandId);
+        var terminalSession = new TerminalSessionItem(ownerKind, shellType, displayName, commandId, groupName);
         _terminalSessions.Add(terminalSession);
         RefreshInternalTerminalSummary();
         RefreshInternalTerminalSessionManager();
@@ -1441,32 +1456,57 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void ActivateTerminalSession(TerminalSessionItem terminalSession)
     {
+        if (terminalSession.OwnerKind != TerminalSessionOwnerKind.Command)
+        {
+            _isGlobalTerminalSwitcherMode = true;
+        }
+
         _activeTerminalSession = terminalSession;
         RefreshTerminalPresentation();
     }
 
     public void SwitchToPreviousCommandTerminalSession()
     {
-        if (!TryGetActiveCommandTerminalSessionPosition(out var index, out _)
+        var sessions = GetCurrentSwitcherSessions();
+
+        if (!TryGetCurrentSwitcherSessionPosition(out var index, out _)
             || index <= 0)
         {
             return;
         }
 
-        ActivateTerminalSession(GetActiveCommandTerminalSessions()[index - 1]);
+        ActivateTerminalSession(sessions[index - 1]);
     }
 
     public void SwitchToNextCommandTerminalSession()
     {
-        var sessions = GetActiveCommandTerminalSessions();
+        var sessions = GetCurrentSwitcherSessions();
 
-        if (!TryGetActiveCommandTerminalSessionPosition(out var index, out var count)
+        if (!TryGetCurrentSwitcherSessionPosition(out var index, out var count)
             || index >= count - 1)
         {
             return;
         }
 
         ActivateTerminalSession(sessions[index + 1]);
+    }
+
+    public void ToggleTerminalSessionSwitcherScope()
+    {
+        if (GetAllVisibleInternalTerminalSessions().Count <= 1)
+        {
+            return;
+        }
+
+        if (_activeTerminalSession?.OwnerKind != TerminalSessionOwnerKind.Command)
+        {
+            _isGlobalTerminalSwitcherMode = true;
+            RefreshCommandTerminalSwitcher();
+            return;
+        }
+
+        _isGlobalTerminalSwitcherMode = !_isGlobalTerminalSwitcherMode;
+        RefreshCommandTerminalSwitcher();
     }
 
     private void SyncTerminalPresentationForSelection()
@@ -1504,13 +1544,45 @@ public sealed class MainWindowViewModel : ObservableObject
             .ToList();
     }
 
-    private bool TryGetActiveCommandTerminalSessionPosition(out int index, out int count)
+    private List<TerminalSessionItem> GetAllVisibleInternalTerminalSessions()
+    {
+        return _terminalSessions
+            .Where(session => !session.IsClosed)
+            .ToList();
+    }
+
+    private List<TerminalSessionItem> GetCurrentSwitcherSessions()
+    {
+        if (_isGlobalTerminalSwitcherMode)
+        {
+            return GetAllVisibleInternalTerminalSessions();
+        }
+
+        return GetActiveCommandTerminalSessions();
+    }
+
+    private bool TryGetCurrentSwitcherSessionPosition(out int index, out int count)
+    {
+        var sessions = GetCurrentSwitcherSessions();
+        count = sessions.Count;
+        index = -1;
+
+        if (count <= 1 || _activeTerminalSession is null)
+        {
+            return false;
+        }
+
+        index = sessions.FindIndex(session => session.SessionId == _activeTerminalSession.SessionId);
+        return index >= 0;
+    }
+
+    private bool TryGetActiveCommandTerminalSessionPositionForDisplay(out int index, out int count)
     {
         var sessions = GetActiveCommandTerminalSessions();
         count = sessions.Count;
         index = -1;
 
-        if (count <= 1 || _activeTerminalSession is null)
+        if (count == 0 || _activeTerminalSession is null)
         {
             return false;
         }
@@ -1715,6 +1787,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 session => new InternalTerminalSessionListItem
                 {
                     SessionId = session.SessionId,
+                    GroupName = session.GroupName,
+                    HasGroupName = !string.IsNullOrWhiteSpace(session.GroupName),
                     Title = session.OwnerKind == TerminalSessionOwnerKind.Command
                         ? session.DisplayName
                         : _localization.Get("MainWindow_TerminalSessionName"),

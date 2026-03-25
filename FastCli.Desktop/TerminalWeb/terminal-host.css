@@ -35,13 +35,13 @@ body {
   height: 100%;
   width: 100%;
   min-width: 0;
-  padding: 10px 14px 8px;
+  padding: 8px 8px 4px;
   background: var(--terminal-bg);
   color: var(--terminal-fg);
 }
 
 .xterm-screen {
-  padding-bottom: 2px;
+  padding-bottom: 0;
 }
 
 .xterm .xterm-viewport,

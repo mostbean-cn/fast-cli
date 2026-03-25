@@ -20,13 +20,15 @@ internal sealed class TerminalSessionItem
         TerminalSessionOwnerKind ownerKind,
         ShellType shellType,
         string displayName,
-        Guid? commandId = null)
+        Guid? commandId = null,
+        string? groupName = null)
     {
         SessionId = Guid.NewGuid();
         OwnerKind = ownerKind;
         ShellType = shellType;
         DisplayName = displayName;
         CommandId = commandId;
+        GroupName = groupName ?? string.Empty;
         StartedAt = DateTimeOffset.Now;
     }
 
@@ -39,6 +41,8 @@ internal sealed class TerminalSessionItem
     public ShellType ShellType { get; }
 
     public string DisplayName { get; }
+
+    public string GroupName { get; }
 
     public DateTimeOffset StartedAt { get; }
 

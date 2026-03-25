@@ -4,6 +4,10 @@ public sealed class InternalTerminalSessionListItem
 {
     public required Guid SessionId { get; init; }
 
+    public required string GroupName { get; init; }
+
+    public required bool HasGroupName { get; init; }
+
     public required string Title { get; init; }
 
     public required string Subtitle { get; init; }

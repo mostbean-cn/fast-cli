@@ -233,7 +233,7 @@
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="999"
+                                CornerRadius="6"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
@@ -382,6 +382,39 @@
         <Style x:Key="ButtonLabelTextStyle" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+        </Style>
+        <Style x:Key="ImmersiveCollapsedBadgeStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Visible" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.IsImmersiveTerminalMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ImmersiveToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryBorderlessButton}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.IsImmersiveTerminalMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                    <Setter Property="Width" Value="28" />
+                    <Setter Property="Height" Value="28" />
+                    <Setter Property="MinHeight" Value="28" />
+                    <Setter Property="Padding" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ImmersiveToolbarIconTextStyle" TargetType="TextBlock" BasedOn="{StaticResource ButtonGlyphTextStyle}">
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.IsImmersiveTerminalMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                    <Setter Property="Margin" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ImmersiveToolbarLabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource ButtonLabelTextStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.IsImmersiveTerminalMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="TerminalShellContextMenuStyle" TargetType="ContextMenu">
             <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
@@ -663,6 +696,21 @@
                                                                     HorizontalContentAlignment="Stretch"
                                                                     Padding="0">
                                                                 <StackPanel>
+                                                                    <TextBlock Text="{Binding GroupName}"
+                                                                               FontSize="10.5"
+                                                                               Foreground="{DynamicResource TertiaryTextBrush}"
+                                                                               Margin="0,0,0,3">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding HasGroupName}" Value="False">
+                                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
                                                                     <StackPanel Orientation="Horizontal">
                                                                         <TextBlock Text="{Binding Title}"
                                                                                    FontWeight="SemiBold"
@@ -677,7 +725,7 @@
                                                                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                                         <Border x:Name="SessionStatusBadge"
                                                                                 Padding="6,2"
-                                                                                CornerRadius="999"
+                                                                                CornerRadius="6"
                                                                                 Background="{DynamicResource ControlBackgroundBrush}">
                                                                             <TextBlock x:Name="SessionStatusText"
                                                                                        Text="{Binding StatusText}"
@@ -1213,14 +1261,24 @@
                       Background="{DynamicResource TerminalBackgroundBrush}"
                       Visibility="{Binding IsTerminalPanelVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="56" />
+                        <RowDefinition x:Name="TerminalHeaderRowDefinition" Height="56" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     
                     <Border BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,1,0,1">
-                        <DockPanel Margin="14,5">
+                        <DockPanel x:Name="TerminalHeaderDockPanel" Margin="14,5">
                             <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsImmersiveTerminalMode}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
                                     <TextBlock Text="{loc:Loc MainWindow_TerminalOutput}" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" FontFamily="Consolas" />
                                     <TextBlock Text="{Binding TerminalSessionLabel}"
                                                Margin="12,0,0,0"
@@ -1229,10 +1287,27 @@
                                                TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                    <Border Background="{DynamicResource SelectedItemBackgroundBrush}" CornerRadius="999" Padding="8,2">
+                                    <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Margin" Value="0,6,0,0" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsImmersiveTerminalMode}" Value="True">
+                                                            <Setter Property="Margin" Value="0,1,0,0" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                    <Border Background="{DynamicResource SelectedItemBackgroundBrush}"
+                                            CornerRadius="6"
+                                            Padding="8,2"
+                                            Style="{StaticResource ImmersiveCollapsedBadgeStyle}">
                                         <TextBlock Text="{Binding TerminalSessionStatus}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
                                     </Border>
-                                    <Border Background="{DynamicResource ControlBackgroundBrush}" CornerRadius="999" Padding="8,2" Margin="8,0,0,0">
+                                    <Border Background="{DynamicResource ControlBackgroundBrush}"
+                                            CornerRadius="6"
+                                            Padding="8,2"
+                                            Margin="8,0,0,0"
+                                            Style="{StaticResource ImmersiveCollapsedBadgeStyle}">
                                         <TextBlock Text="{Binding TerminalInputStatus}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
                                     </Border>
                                     <Button Click="ToggleImmersiveTerminalButton_Click"
@@ -1246,6 +1321,27 @@
                                                    Margin="0,-1,0,0"
                                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                                     </Button>
+                                    <Button Click="InternalTerminalSummaryButton_Click"
+                                            ToolTip="{loc:Loc MainWindow_InternalTerminalSessionManagerTitle}"
+                                            Margin="8,0,0,0"
+                                            Padding="8,2">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SummaryLinkButtonStyle}">
+                                                <Setter Property="MinHeight" Value="24" />
+                                                <Setter Property="Height" Value="24" />
+                                                <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsImmersiveTerminalMode}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <TextBlock Text="{Binding InternalTerminalSummaryText}"
+                                                   FontSize="11"
+                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    </Button>
                                 </StackPanel>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -1255,71 +1351,65 @@
                                             Visibility="{Binding IsCommandTerminalSwitcherVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Button Click="SwitchPreviousTerminalSessionButton_Click"
                                             IsEnabled="{Binding CanSwitchToPreviousCommandTerminalSession}"
-                                            Style="{StaticResource SecondaryBorderlessButton}"
+                                            Style="{StaticResource ImmersiveToolbarButtonStyle}"
                                             ToolTip="{loc:Loc MainWindow_PreviousTerminalSessionTooltip}"
                                             Width="24"
                                             Height="24"
                                             Padding="0">
-                                        <TextBlock Text="&#xE76B;" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                        <TextBlock Text="&#xE76B;" Style="{StaticResource ImmersiveToolbarIconTextStyle}" />
                                     </Button>
-                                    <TextBlock Text="{Binding CommandTerminalSessionSwitcherText}"
-                                               Margin="6,0"
-                                               VerticalAlignment="Center"
-                                               FontSize="11"
-                                               Foreground="{DynamicResource SecondaryTextBrush}" />
+                                    <Button Click="ToggleTerminalSessionSwitcherScopeButton_Click"
+                                            Style="{StaticResource SummaryLinkButtonStyle}"
+                                            ToolTip="{loc:Loc MainWindow_TerminalSessionSwitcherToggleTooltip}"
+                                            Padding="0"
+                                            Margin="6,0">
+                                        <TextBlock Text="{Binding CommandTerminalSessionSwitcherText}"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="11"
+                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    </Button>
                                     <Button Click="SwitchNextTerminalSessionButton_Click"
                                             IsEnabled="{Binding CanSwitchToNextCommandTerminalSession}"
-                                            Style="{StaticResource SecondaryBorderlessButton}"
+                                            Style="{StaticResource ImmersiveToolbarButtonStyle}"
                                             ToolTip="{loc:Loc MainWindow_NextTerminalSessionTooltip}"
                                             Width="24"
                                             Height="24"
                                             Padding="0">
-                                        <TextBlock Text="&#xE76C;" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                        <TextBlock Text="&#xE76C;" Style="{StaticResource ImmersiveToolbarIconTextStyle}" />
                                     </Button>
                                 </StackPanel>
-                                <Button Click="StopCommandButton_Click" IsEnabled="{Binding CanStopCommand}" Style="{StaticResource SecondaryBorderlessButton}" Foreground="{DynamicResource DangerButtonBackgroundBrush}" Margin="0,0,8,0" Padding="6,4">
+                                <Button Click="StopCommandButton_Click" IsEnabled="{Binding CanStopCommand}" Style="{StaticResource ImmersiveToolbarButtonStyle}" Foreground="{DynamicResource DangerButtonBackgroundBrush}" Margin="0,0,8,0" Padding="6,4">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE71A;" Margin="0,0,6,0" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                        <TextBlock Text="{loc:Loc Common_Stop}" Style="{StaticResource ButtonLabelTextStyle}" />
+                                        <TextBlock Text="&#xE71A;" Style="{StaticResource ImmersiveToolbarIconTextStyle}" />
+                                        <TextBlock Text="{loc:Loc Common_Stop}" Style="{StaticResource ImmersiveToolbarLabelTextStyle}" />
                                     </StackPanel>
                                 </Button>
-                                <Button Click="RefreshTerminalButton_Click" Style="{StaticResource SecondaryBorderlessButton}" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,8,0" Padding="6,4">
+                                <Button Click="RefreshTerminalButton_Click" Style="{StaticResource ImmersiveToolbarButtonStyle}" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,8,0" Padding="6,4">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE72C;" Margin="0,0,6,0" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                        <TextBlock Text="{loc:Loc Common_Refresh}" Style="{StaticResource ButtonLabelTextStyle}" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Click="ClearLogButton_Click"
-                                        IsEnabled="{Binding CanClearTerminalOutput}"
-                                        Style="{StaticResource SecondaryBorderlessButton}"
-                                        Foreground="{DynamicResource SecondaryTextBrush}"
-                                        Margin="0,0,8,0"
-                                        Padding="6,4">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE894;" Margin="0,0,6,0" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                        <TextBlock Text="{loc:Loc Common_Clear}" Style="{StaticResource ButtonLabelTextStyle}" />
+                                        <TextBlock Text="&#xE72C;" Style="{StaticResource ImmersiveToolbarIconTextStyle}" />
+                                        <TextBlock Text="{loc:Loc Common_Refresh}" Style="{StaticResource ImmersiveToolbarLabelTextStyle}" />
                                     </StackPanel>
                                 </Button>
                                 <Button Click="ToggleTerminalMaximizeButton_Click"
                                         IsEnabled="{Binding CanToggleTerminalMaximize}"
-                                        Style="{StaticResource SecondaryBorderlessButton}"
+                                        Style="{StaticResource ImmersiveToolbarButtonStyle}"
                                         Foreground="{DynamicResource SecondaryTextBrush}"
                                         ToolTip="{Binding TerminalMaximizeToolTip}"
                                         Margin="0,0,8,0"
                                         Padding="6,4">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding TerminalMaximizeGlyph}" Margin="0,0,6,0" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                        <TextBlock Text="{Binding TerminalMaximizeButtonText}" Style="{StaticResource ButtonLabelTextStyle}" />
+                                        <TextBlock Text="{Binding TerminalMaximizeGlyph}" Style="{StaticResource ImmersiveToolbarIconTextStyle}" />
+                                        <TextBlock Text="{Binding TerminalMaximizeButtonText}" Style="{StaticResource ImmersiveToolbarLabelTextStyle}" />
                                     </StackPanel>
                                 </Button>
                                 <Button Click="CloseTerminalPanelButton_Click"
-                                        Style="{StaticResource SecondaryBorderlessButton}"
+                                        Style="{StaticResource ImmersiveToolbarButtonStyle}"
                                         Foreground="{DynamicResource SecondaryTextBrush}"
                                         ToolTip="{loc:Loc MainWindow_TerminalCloseTooltip}"
                                         Padding="6,4">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE711;" Margin="0,0,6,0" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                        <TextBlock Text="{loc:Loc Common_Close}" Style="{StaticResource ButtonLabelTextStyle}" />
+                                        <TextBlock Text="&#xE711;" Style="{StaticResource ImmersiveToolbarIconTextStyle}" />
+                                        <TextBlock Text="{loc:Loc Common_Close}" Style="{StaticResource ImmersiveToolbarLabelTextStyle}" />
                                     </StackPanel>
                                 </Button>
                             </StackPanel>
