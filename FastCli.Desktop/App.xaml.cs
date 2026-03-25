@@ -6,6 +6,7 @@ using FastCli.Desktop.Localization;
 using FastCli.Desktop.ViewModels;
 using FastCli.Desktop.Mvvm;
 using FastCli.Desktop.Services;
+using FastCli.Desktop.Terminal;
 using FastCli.Infrastructure.Execution;
 using FastCli.Infrastructure.Persistence;
 
@@ -106,7 +107,7 @@ public partial class App : System.Windows.Application
         {
             if (Environment.OSVersion.Version >= new Version(10, 0, 17763))
             {
-                return new ConPtyCommandExecutor(localizer);
+                return new WindowsTerminalCommandExecutor(localizer);
             }
         }
         catch

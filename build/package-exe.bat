@@ -39,9 +39,7 @@ dotnet publish "%PROJECT%" ^
   -c Release ^
   -r win-x64 ^
   --self-contained true ^
-  -p:PublishSingleFile=true ^
-  -p:EnableCompressionInSingleFile=true ^
-  -p:IncludeNativeLibrariesForSelfExtract=true ^
+  -p:PublishSingleFile=false ^
   -p:DebugType=None ^
   -p:DebugSymbols=false ^
   -o "%PUBLISH_DIR%"
@@ -55,6 +53,20 @@ if not exist "%PUBLISH_DIR%\FastCli.exe" (
   echo Publish completed but FastCli.exe was not found.
   exit /b 1
 )
+if not exist "%PUBLISH_DIR%\Microsoft.Terminal.Control.dll" (
+  echo Publish completed but Microsoft.Terminal.Control.dll was not found.
+  exit /b 1
+)
+if not exist "%PUBLISH_DIR%\conpty.dll" (
+  echo Publish completed but conpty.dll was not found.
+  exit /b 1
+)
+if not exist "%PUBLISH_DIR%\OpenConsole.exe" (
+  echo Publish completed but OpenConsole.exe was not found.
+  exit /b 1
+)
+
+del /f /q "%PUBLISH_DIR%\*.pdb" >nul 2>nul
 
 mkdir "%PACKAGE_DIR%" >nul 2>nul
 if errorlevel 1 (

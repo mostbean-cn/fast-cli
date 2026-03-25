@@ -10,18 +10,31 @@
     <EmbeddedResource Include="..\sql\001_init.sql" Link="sql\001_init.sql" />
     <Resource Include="..\assets\FastCli.ico" Link="assets\FastCli.ico" />
     <Resource Include="..\assets\FastCliHeader.png" Link="assets\FastCliHeader.png" />
-    <Content Include="TerminalWeb\**\*.*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3856.49" />
+    <PackageReference Include="CI.Microsoft.Windows.Console.ConPTY" Version="1.22.250314001" GeneratePathProperty="true" />
+    <PackageReference Include="CI.Microsoft.Terminal.Wpf" Version="1.22.250204002" />
+    <PackageReference Include="EasyWindowsTerminalControl" Version="1.0.36" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(PkgCI_Microsoft_Windows_Console_ConPTY)\runtimes\win10-x64\native\conpty.dll">
+      <Link>conpty.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <None Include="$(PkgCI_Microsoft_Windows_Console_ConPTY)\build\native\runtimes\x64\OpenConsole.exe">
+      <Link>OpenConsole.exe</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
   </ItemGroup>
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <ConptyNativePlatform>x64</ConptyNativePlatform>
     <AssemblyName>FastCli</AssemblyName>
     <ApplicationIcon>..\assets\FastCli.ico</ApplicationIcon>
     <Version>1.0.5</Version>

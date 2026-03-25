@@ -50,6 +50,23 @@ if errorlevel 1 (
   exit /b 1
 )
 
+if not exist "%APP_DIR%\FastCli.exe" (
+  echo Publish completed but FastCli.exe was not found.
+  exit /b 1
+)
+if not exist "%APP_DIR%\Microsoft.Terminal.Control.dll" (
+  echo Publish completed but Microsoft.Terminal.Control.dll was not found.
+  exit /b 1
+)
+if not exist "%APP_DIR%\conpty.dll" (
+  echo Publish completed but conpty.dll was not found.
+  exit /b 1
+)
+if not exist "%APP_DIR%\OpenConsole.exe" (
+  echo Publish completed but OpenConsole.exe was not found.
+  exit /b 1
+)
+
 if exist "%SETUP_EXE%" del /f /q "%SETUP_EXE%"
 if exist "%SETUP_EXE%" (
   echo Failed to remove old setup package: "%SETUP_EXE%"

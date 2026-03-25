@@ -269,7 +269,8 @@ public sealed class FastCliAppService : IFastCliAppService
             executorSession.StopAsync)
         {
             SendInputAsync = executorSession.SendInputAsync,
-            ResizeAsync = executorSession.ResizeAsync
+            ResizeAsync = executorSession.ResizeAsync,
+            NativeTerminalHandle = executorSession.NativeTerminalHandle
         };
 
         return new CommandStartResult

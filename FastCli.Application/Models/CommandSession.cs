@@ -19,6 +19,8 @@ public sealed class CommandSession
 
     public Func<int, int, CancellationToken, Task>? ResizeAsync { get; init; }
 
+    public object? NativeTerminalHandle { get; init; }
+
     public bool IsInteractive => SendInputAsync is not null;
 
     public Task StopAsync(CancellationToken cancellationToken = default)

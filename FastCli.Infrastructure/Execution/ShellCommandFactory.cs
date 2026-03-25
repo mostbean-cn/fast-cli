@@ -7,7 +7,7 @@ using FastCli.Domain.Enums;
 
 namespace FastCli.Infrastructure.Execution;
 
-internal static class ShellCommandFactory
+public static class ShellCommandFactory
 {
     public static ProcessStartInfo CreateEmbeddedStartInfo(CommandExecutionRequest request, IAppLocalizer localizer)
     {
@@ -182,7 +182,7 @@ if ($PSVersionTable.PSVersion.Major -ge 7) { $PSStyle.OutputRendering = 'PlainTe
         }
     }
 
-    internal static string ResolveWorkingDirectory(string? workingDirectory)
+    public static string ResolveWorkingDirectory(string? workingDirectory)
     {
         if (string.IsNullOrWhiteSpace(workingDirectory))
         {
@@ -192,7 +192,7 @@ if ($PSVersionTable.PSVersion.Major -ge 7) { $PSStyle.OutputRendering = 'PlainTe
         return workingDirectory;
     }
 
-    internal static string ResolveShellPath(ShellType shellType)
+    public static string ResolveShellPath(ShellType shellType)
     {
         return shellType switch
         {
@@ -204,7 +204,7 @@ if ($PSVersionTable.PSVersion.Major -ge 7) { $PSStyle.OutputRendering = 'PlainTe
         };
     }
 
-    internal static string[] BuildConPtyArguments(CommandExecutionRequest request)
+    public static string[] BuildConPtyArguments(CommandExecutionRequest request)
     {
         return request.ShellType switch
         {

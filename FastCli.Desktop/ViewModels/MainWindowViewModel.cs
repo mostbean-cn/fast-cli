@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Text;
 using System.Windows;
 using System.Windows.Threading;
+using EasyWindowsTerminalControl;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
 using FastCli.Desktop.Localization;
@@ -258,6 +259,8 @@ public sealed class MainWindowViewModel : ObservableObject
     }
 
     public string CurrentTerminalRawText => _activeTerminalSession?.RawTranscriptText ?? string.Empty;
+
+    public TermPTY? CurrentTerminalConnection => _activeTerminalSession?.NativeTerminal;
 
     public bool IsTerminalPanelVisible
     {
@@ -1208,7 +1211,11 @@ public sealed class MainWindowViewModel : ObservableObject
         CurrentLogText = terminalSession.PlainTranscriptText;
         OnPropertyChanged(nameof(CurrentTerminalRawText));
         OnPropertyChanged(nameof(CanClearTerminalOutput));
-        TerminalOutputAppended?.Invoke(text);
+
+        if (terminalSession.NativeTerminal is null)
+        {
+            TerminalOutputAppended?.Invoke(text);
+        }
     }
 
     private void ClearTerminalOutput()
@@ -1220,6 +1227,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
         CurrentLogText = string.Empty;
         OnPropertyChanged(nameof(CurrentTerminalRawText));
+        OnPropertyChanged(nameof(CurrentTerminalConnection));
         OnPropertyChanged(nameof(CanClearTerminalOutput));
         TerminalOutputReplaced?.Invoke(string.Empty);
     }
@@ -1601,6 +1609,7 @@ public sealed class MainWindowViewModel : ObservableObject
         HideTerminalPanel(clearOutput: false);
         SetTerminalStatusReady();
         OnPropertyChanged(nameof(CurrentTerminalRawText));
+        OnPropertyChanged(nameof(CurrentTerminalConnection));
         OnPropertyChanged(nameof(CanStopCommand));
         OnPropertyChanged(nameof(CanClearTerminalOutput));
         RefreshCommandTerminalSwitcher();
@@ -1629,6 +1638,7 @@ public sealed class MainWindowViewModel : ObservableObject
             ? "MainWindow_TerminalInputEnabled"
             : "MainWindow_TerminalInputDisabled");
         OnPropertyChanged(nameof(CurrentTerminalRawText));
+        OnPropertyChanged(nameof(CurrentTerminalConnection));
         OnPropertyChanged(nameof(CanStopCommand));
         OnPropertyChanged(nameof(CanClearTerminalOutput));
         RefreshInternalTerminalSummary();

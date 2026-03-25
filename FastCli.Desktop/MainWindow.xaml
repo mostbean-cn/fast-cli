@@ -3,7 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:loc="clr-namespace:FastCli.Desktop.Localization"
         xmlns:mvvm="clr-namespace:FastCli.Desktop.Mvvm"
-        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         Title="{loc:Loc MainWindow_Title}" Width="1200" Height="800"
         WindowStartupLocation="CenterScreen"
@@ -1384,12 +1383,6 @@
                                         <TextBlock Text="{loc:Loc Common_Stop}" Style="{StaticResource ImmersiveToolbarLabelTextStyle}" />
                                     </StackPanel>
                                 </Button>
-                                <Button Click="RefreshTerminalButton_Click" Style="{StaticResource ImmersiveToolbarButtonStyle}" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,8,0" Padding="6,4">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE72C;" Style="{StaticResource ImmersiveToolbarIconTextStyle}" />
-                                        <TextBlock Text="{loc:Loc Common_Refresh}" Style="{StaticResource ImmersiveToolbarLabelTextStyle}" />
-                                    </StackPanel>
-                                </Button>
                                 <Button Click="ToggleTerminalMaximizeButton_Click"
                                         IsEnabled="{Binding CanToggleTerminalMaximize}"
                                         Style="{StaticResource ImmersiveToolbarButtonStyle}"
@@ -1417,10 +1410,10 @@
                     </Border>
 
                     <Grid Grid.Row="1">
-                        <wv2:WebView2 x:Name="TerminalWebView"
-                                      Margin="0"
-                                      HorizontalAlignment="Stretch"
-                                      VerticalAlignment="Stretch" />
+                        <Grid x:Name="TerminalSurface"
+                              Margin="0"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch" />
                         <Border x:Name="TerminalUnavailableOverlay"
                                 Background="{DynamicResource TerminalBackgroundBrush}"
                                 Visibility="Collapsed">

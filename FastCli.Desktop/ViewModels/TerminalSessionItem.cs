@@ -1,4 +1,5 @@
 using System.Text;
+using EasyWindowsTerminalControl;
 using FastCli.Application.Models;
 using FastCli.Application.Utilities;
 using FastCli.Domain.Enums;
@@ -50,6 +51,8 @@ internal sealed class TerminalSessionItem
 
     public CommandSession? ExecutorSession { get; private set; }
 
+    public TermPTY? NativeTerminal { get; private set; }
+
     public bool IsInteractive => ExecutorSession?.IsInteractive == true;
 
     public bool IsRunning { get; private set; }
@@ -63,6 +66,7 @@ internal sealed class TerminalSessionItem
     public void Attach(CommandSession session)
     {
         ExecutorSession = session;
+        NativeTerminal = session.NativeTerminalHandle as TermPTY;
         IsRunning = true;
         EndedAt = null;
     }

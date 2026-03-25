@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.IO;
 using System.ComponentModel;
 using FastCli.Application.Utilities;
 using FastCli.Desktop.Layout;
@@ -23,7 +22,7 @@ public partial class MainWindow : Window
     private Point _commandDragStartPoint;
     private readonly GitHubReleaseUpdateService _updateService;
     private readonly AppDialogOptionsFactory _dialogOptionsFactory;
-    private readonly TerminalWebViewHost _terminalHost;
+    private readonly WindowsTerminalControlHost _terminalHost;
     private readonly DispatcherTimer _terminalViewportSyncTimer;
     private SettingsView? _settingsView;
     private TerminalPanelLayoutPreset? _terminalRestoreLayout;
@@ -39,9 +38,7 @@ public partial class MainWindow : Window
         _updateService = updateService;
         _dialogOptionsFactory = new AppDialogOptionsFactory(LocalizationManager.Instance);
         DataContext = viewModel;
-        _terminalHost = new TerminalWebViewHost(
-            TerminalWebView,
-            Path.Combine(AppContext.BaseDirectory, "TerminalWeb"));
+        _terminalHost = new WindowsTerminalControlHost(TerminalSurface);
         _terminalViewportSyncTimer = new DispatcherTimer(
             TimeSpan.FromMilliseconds(90),
             DispatcherPriority.Background,
@@ -51,7 +48,7 @@ public partial class MainWindow : Window
         Activated += MainWindow_Activated;
         SizeChanged += MainWindow_SizeChanged;
         StateChanged += MainWindow_StateChanged;
-        TerminalWebView.SizeChanged += TerminalWebView_SizeChanged;
+        TerminalSurface.SizeChanged += TerminalSurface_SizeChanged;
         ViewModel.TerminalOutputAppended += ViewModel_TerminalOutputAppended;
         ViewModel.TerminalOutputReplaced += ViewModel_TerminalOutputReplaced;
         ViewModel.PropertyChanged += ViewModel_PropertyChanged;
@@ -68,7 +65,7 @@ public partial class MainWindow : Window
         ApplySidebarLayout();
         await InitializeTerminalAsync();
         await ViewModel.LoadAsync();
-        await _terminalHost.ReplaceAsync(ViewModel.CurrentTerminalRawText);
+        await DisplayCurrentTerminalAsync(requestFocus: false);
     }
 
     private async void AddGroupButton_Click(object sender, RoutedEventArgs e)
@@ -194,13 +191,6 @@ public partial class MainWindow : Window
         {
             item.IsSelected = true;
         }
-    }
-
-    private async void RefreshTerminalButton_Click(object sender, RoutedEventArgs e)
-    {
-        await _terminalHost.ReplaceAsync(ViewModel.CurrentTerminalRawText);
-        await _terminalHost.HardRefreshAsync();
-        await EnsureTerminalViewportReadyAsync("refresh-terminal", requestFocus: false, preserveBottom: true);
     }
 
     private async void ClearLogButton_Click(object sender, RoutedEventArgs e)
@@ -557,8 +547,8 @@ public partial class MainWindow : Window
         _settingsView = new SettingsView(settingsViewModel);
         _settingsView.BackRequested += SettingsView_BackRequested;
         SettingsPageHost.Content = _settingsView;
-        _terminalSurfaceVisibilityBeforeSettings = TerminalWebView.Visibility;
-        TerminalWebView.Visibility = Visibility.Hidden;
+        _terminalSurfaceVisibilityBeforeSettings = TerminalSurface.Visibility;
+        TerminalSurface.Visibility = Visibility.Hidden;
         SettingsPageContainer.Visibility = Visibility.Visible;
     }
 
@@ -572,7 +562,7 @@ public partial class MainWindow : Window
 
         SettingsPageHost.Content = null;
         SettingsPageContainer.Visibility = Visibility.Collapsed;
-        TerminalWebView.Visibility = _terminalSurfaceVisibilityBeforeSettings;
+        TerminalSurface.Visibility = _terminalSurfaceVisibilityBeforeSettings;
     }
 
     private void SettingsView_BackRequested(object? sender, EventArgs e)
@@ -594,15 +584,12 @@ public partial class MainWindow : Window
     {
         try
         {
-            await _terminalHost.InitializeAsync(
-                CreateTerminalTheme(),
-                ViewModel.SendTerminalInputAsync,
-                ViewModel.ResizeTerminalAsync);
-            await _terminalHost.ReplaceAsync(ViewModel.CurrentTerminalRawText);
-            TerminalUnavailableOverlay.Visibility = Visibility.Collapsed;
+            await _terminalHost.InitializeAsync(CreateTerminalTheme());
+            await DisplayCurrentTerminalAsync(requestFocus: false);
         }
         catch (Exception ex)
         {
+            TerminalSurface.Visibility = Visibility.Hidden;
             TerminalUnavailableText.Text = $"{LocalizationManager.Instance.Get("MainWindow_TerminalOutput")}{Environment.NewLine}{AnsiEscapeParser.StripAnsi(ex.Message)}";
             TerminalUnavailableOverlay.Visibility = Visibility.Visible;
         }
@@ -610,12 +597,15 @@ public partial class MainWindow : Window
 
     private async void ViewModel_TerminalOutputAppended(string text)
     {
-        await _terminalHost.WriteAsync(text);
+        if (ViewModel.CurrentTerminalConnection is null)
+        {
+            UpdateFallbackTerminalOverlay(ViewModel.CurrentTerminalRawText);
+        }
     }
 
     private async void ViewModel_TerminalOutputReplaced(string text)
     {
-        await _terminalHost.ReplaceAsync(text);
+        await DisplayCurrentTerminalAsync(requestFocus: false);
     }
 
     private async void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -787,6 +777,44 @@ public partial class MainWindow : Window
         return "#000000";
     }
 
+    private async Task DisplayCurrentTerminalAsync(bool requestFocus)
+    {
+        if (ViewModel.CurrentTerminalConnection is null)
+        {
+            await _terminalHost.DisplayAsync(
+                terminal: null,
+                transcript: string.Empty,
+                allowInput: false,
+                requestFocus: false);
+            UpdateFallbackTerminalOverlay(ViewModel.CurrentTerminalRawText);
+            return;
+        }
+
+        TerminalSurface.Visibility = Visibility.Visible;
+        TerminalUnavailableOverlay.Visibility = Visibility.Collapsed;
+
+        await _terminalHost.DisplayAsync(
+            ViewModel.CurrentTerminalConnection,
+            ViewModel.CurrentTerminalRawText,
+            ViewModel.CanSendTerminalInput,
+            requestFocus);
+    }
+
+    private void UpdateFallbackTerminalOverlay(string transcript)
+    {
+        if (string.IsNullOrWhiteSpace(transcript))
+        {
+            TerminalSurface.Visibility = Visibility.Visible;
+            TerminalUnavailableOverlay.Visibility = Visibility.Collapsed;
+            TerminalUnavailableText.Text = string.Empty;
+            return;
+        }
+
+        TerminalSurface.Visibility = Visibility.Hidden;
+        TerminalUnavailableText.Text = AnsiEscapeParser.StripAnsi(transcript);
+        TerminalUnavailableOverlay.Visibility = Visibility.Visible;
+    }
+
     private async Task EnsureTerminalViewportReadyAsync(
         string reason = "manual",
         bool requestFocus = false,
@@ -794,12 +822,7 @@ public partial class MainWindow : Window
     {
         await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
         await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
-        await _terminalHost.SyncViewportAsync(reason, requestFocus, preserveBottom);
-
-        if (requestFocus)
-        {
-            TerminalWebView.Focus();
-        }
+        await _terminalHost.SyncAsync(requestFocus);
     }
 
     private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -822,7 +845,7 @@ public partial class MainWindow : Window
         ScheduleTerminalViewportSync();
     }
 
-    private void TerminalWebView_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void TerminalSurface_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (!e.WidthChanged && !e.HeightChanged)
         {
