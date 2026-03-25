@@ -125,12 +125,6 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(CanEditCommand));
                 OnPropertyChanged(nameof(CanRunCommand));
-                if (!IsExecutionRunning)
-                {
-                    ClearTerminalOutput();
-                    SetTerminalStatusReady();
-                }
-
                 LoadEditorFromSelectedCommand();
                 _ = LoadExecutionHistoryAsync(value?.Id);
                 PersistSelectionStateIfNeeded();
@@ -786,7 +780,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         ClearTerminalOutput();
-        SetTerminalStatusReady();
+        SetTerminalPresentationIdle();
         await Task.CompletedTask;
     }
 
@@ -805,7 +799,6 @@ public sealed class MainWindowViewModel : ObservableObject
             Commands.Clear();
             SelectedCommand = null;
             ReplaceCollection(ExecutionHistory, snapshot.RecentExecutionRecords);
-            ClearTerminalOutput();
             _suppressSelectionPersistence = false;
             PersistSelectionStateIfNeeded();
             return;
@@ -896,7 +889,6 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             ExecutionHistory.Clear();
             SelectedHistoryRecord = null;
-            ClearTerminalOutput();
             return;
         }
 
@@ -1174,7 +1166,7 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        RefreshTerminalSessionLabel();
+        SetTerminalPresentationIdle();
     }
 
     private void SetTerminalSessionLabel(ShellType shellType, bool isCommandExecution, string? nameOverride)
@@ -1227,6 +1219,17 @@ public sealed class MainWindowViewModel : ObservableObject
         _activeTerminalName = null;
         CanSendTerminalInput = false;
         TerminalSessionLabel = _localization.Get("MainWindow_TerminalPanelReady");
+        SetTerminalSessionStatus("MainWindow_TerminalDisconnected");
+        SetTerminalInputStatus("MainWindow_TerminalInputDisabled");
+    }
+
+    private void SetTerminalPresentationIdle()
+    {
+        _activeTerminalShellType = null;
+        _activeTerminalIsCommandExecution = false;
+        _activeTerminalName = null;
+        CanSendTerminalInput = false;
+        TerminalSessionLabel = _localization.Get("MainWindow_TerminalPanelIdle");
         SetTerminalSessionStatus("MainWindow_TerminalDisconnected");
         SetTerminalInputStatus("MainWindow_TerminalInputDisabled");
     }
