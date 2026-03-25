@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
 using FastCli.Domain.Enums;
@@ -300,6 +301,7 @@ public sealed class FastCliAppService : IFastCliAppService
         var request = new CommandExecutionRequest
         {
             Name = _localizer.Get("MainWindow_TerminalSessionName"),
+            WorkingDirectory = GetDefaultTerminalWorkingDirectory(),
             ShellType = shellType,
             RunMode = CommandRunMode.Embedded,
             CommandText = string.Empty,
@@ -309,6 +311,12 @@ public sealed class FastCliAppService : IFastCliAppService
         };
 
         return _commandExecutor.StartTerminalAsync(request, onOutput, cancellationToken);
+    }
+
+    private static string GetDefaultTerminalWorkingDirectory()
+    {
+        return Path.GetPathRoot(AppContext.BaseDirectory)
+               ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     }
 
     public CommandDisplayInfo BuildDisplayInfo(CommandProfile profile)

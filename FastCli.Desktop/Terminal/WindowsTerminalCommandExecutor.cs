@@ -275,15 +275,21 @@ public sealed class WindowsTerminalCommandExecutor : ICommandExecutor
     private string BuildCmdBootstrap(CommandExecutionRequest request, bool hasPayload)
     {
         var segments = new List<string>();
+        var workingDirectory = ShellCommandFactory.ResolveWorkingDirectory(request.WorkingDirectory);
+
+        if (!hasPayload)
+        {
+            segments.Add("chcp 65001>nul");
+        }
 
         foreach (var entry in BuildTerminalEnvironment(request))
         {
             segments.Add($"set \"{entry.Key}={EscapeCmdSetValue(entry.Value)}\"");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.WorkingDirectory))
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
         {
-            segments.Add($"cd /d {QuoteWindowsArgument(ShellCommandFactory.ResolveWorkingDirectory(request.WorkingDirectory))}");
+            segments.Add($"cd /d {QuoteWindowsArgument(workingDirectory)}");
         }
 
         if (hasPayload)
@@ -297,19 +303,26 @@ public sealed class WindowsTerminalCommandExecutor : ICommandExecutor
     private string BuildPowerShellBootstrap(CommandExecutionRequest request, bool hasPayload)
     {
         var script = new StringBuilder();
+        var workingDirectory = ShellCommandFactory.ResolveWorkingDirectory(request.WorkingDirectory);
         script.AppendLine("[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)");
         script.AppendLine("[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)");
         script.AppendLine("$OutputEncoding = [Console]::OutputEncoding");
         script.AppendLine("if ($PSVersionTable.PSVersion.Major -ge 7) { $PSStyle.OutputRendering = 'PlainText' }");
+
+        if (!hasPayload)
+        {
+            // PSReadLine may crash on IME/composition key events in the embedded terminal host.
+            script.AppendLine("Remove-Module PSReadLine -ErrorAction SilentlyContinue");
+        }
 
         foreach (var entry in BuildTerminalEnvironment(request))
         {
             script.AppendLine($"[System.Environment]::SetEnvironmentVariable('{EscapePowerShellString(entry.Key)}', '{EscapePowerShellString(entry.Value)}', 'Process')");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.WorkingDirectory))
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
         {
-            script.AppendLine($"Set-Location -LiteralPath '{EscapePowerShellString(ShellCommandFactory.ResolveWorkingDirectory(request.WorkingDirectory))}'");
+            script.AppendLine($"Set-Location -LiteralPath '{EscapePowerShellString(workingDirectory)}'");
         }
 
         if (hasPayload)

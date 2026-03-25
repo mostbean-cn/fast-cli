@@ -39,6 +39,7 @@ public partial class MainWindow : Window
         _dialogOptionsFactory = new AppDialogOptionsFactory(LocalizationManager.Instance);
         DataContext = viewModel;
         _terminalHost = new WindowsTerminalControlHost(TerminalSurface);
+        _terminalHost.Faulted += TerminalHost_Faulted;
         _terminalViewportSyncTimer = new DispatcherTimer(
             TimeSpan.FromMilliseconds(90),
             DispatcherPriority.Background,
@@ -59,13 +60,20 @@ public partial class MainWindow : Window
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        ApplyTerminalPanelLayout(ViewModel.IsTerminalPanelVisible, ViewModel.IsTerminalMaximized);
-        ApplyTerminalHeaderLayout();
-        ApplyImmersiveLayout();
-        ApplySidebarLayout();
-        await InitializeTerminalAsync();
-        await ViewModel.LoadAsync();
-        await DisplayCurrentTerminalAsync(requestFocus: false);
+        try
+        {
+            ApplyTerminalPanelLayout(ViewModel.IsTerminalPanelVisible, ViewModel.IsTerminalMaximized);
+            ApplyTerminalHeaderLayout();
+            ApplyImmersiveLayout();
+            ApplySidebarLayout();
+            await InitializeTerminalAsync();
+            await ViewModel.LoadAsync();
+            await DisplayCurrentTerminalAsync(requestFocus: false);
+        }
+        catch (Exception ex)
+        {
+            HandleTerminalPresentationFailure(ex);
+        }
     }
 
     private async void AddGroupButton_Click(object sender, RoutedEventArgs e)
@@ -412,7 +420,15 @@ public partial class MainWindow : Window
     private async void ToggleThemeButton_Click(object sender, RoutedEventArgs e)
     {
         ViewModel.ToggleTheme();
-        await _terminalHost.SetThemeAsync(CreateTerminalTheme());
+
+        try
+        {
+            await _terminalHost.SetThemeAsync(CreateTerminalTheme());
+        }
+        catch (Exception ex)
+        {
+            HandleTerminalPresentationFailure(ex);
+        }
     }
 
     private void OpenSettingsButton_Click(object sender, RoutedEventArgs e)
@@ -589,23 +605,28 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            TerminalSurface.Visibility = Visibility.Hidden;
-            TerminalUnavailableText.Text = $"{LocalizationManager.Instance.Get("MainWindow_TerminalOutput")}{Environment.NewLine}{AnsiEscapeParser.StripAnsi(ex.Message)}";
-            TerminalUnavailableOverlay.Visibility = Visibility.Visible;
+            HandleTerminalPresentationFailure(ex);
         }
     }
 
-    private async void ViewModel_TerminalOutputAppended(string text)
+    private void ViewModel_TerminalOutputAppended(string text)
     {
         if (ViewModel.CurrentTerminalConnection is null)
         {
-            UpdateFallbackTerminalOverlay(ViewModel.CurrentTerminalRawText);
+            UpdateFallbackTerminalOverlay(text);
         }
     }
 
     private async void ViewModel_TerminalOutputReplaced(string text)
     {
-        await DisplayCurrentTerminalAsync(requestFocus: false);
+        try
+        {
+            await DisplayCurrentTerminalAsync(requestFocus: false);
+        }
+        catch (Exception ex)
+        {
+            HandleTerminalPresentationFailure(ex);
+        }
     }
 
     private async void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -779,25 +800,32 @@ public partial class MainWindow : Window
 
     private async Task DisplayCurrentTerminalAsync(bool requestFocus)
     {
-        if (ViewModel.CurrentTerminalConnection is null)
+        try
         {
+            if (ViewModel.CurrentTerminalConnection is null)
+            {
+                await _terminalHost.DisplayAsync(
+                    terminal: null,
+                    transcript: string.Empty,
+                    allowInput: false,
+                    requestFocus: false);
+                UpdateFallbackTerminalOverlay(ViewModel.CurrentTerminalRawText);
+                return;
+            }
+
+            TerminalSurface.Visibility = Visibility.Visible;
+            TerminalUnavailableOverlay.Visibility = Visibility.Collapsed;
+
             await _terminalHost.DisplayAsync(
-                terminal: null,
-                transcript: string.Empty,
-                allowInput: false,
-                requestFocus: false);
-            UpdateFallbackTerminalOverlay(ViewModel.CurrentTerminalRawText);
-            return;
+                ViewModel.CurrentTerminalConnection,
+                ViewModel.CurrentTerminalRawText,
+                ViewModel.CanSendTerminalInput,
+                requestFocus);
         }
-
-        TerminalSurface.Visibility = Visibility.Visible;
-        TerminalUnavailableOverlay.Visibility = Visibility.Collapsed;
-
-        await _terminalHost.DisplayAsync(
-            ViewModel.CurrentTerminalConnection,
-            ViewModel.CurrentTerminalRawText,
-            ViewModel.CanSendTerminalInput,
-            requestFocus);
+        catch (Exception ex)
+        {
+            HandleTerminalPresentationFailure(ex);
+        }
     }
 
     private void UpdateFallbackTerminalOverlay(string transcript)
@@ -820,9 +848,16 @@ public partial class MainWindow : Window
         bool requestFocus = false,
         bool preserveBottom = true)
     {
-        await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
-        await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
-        await _terminalHost.SyncAsync(requestFocus);
+        try
+        {
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+            await _terminalHost.SyncAsync(requestFocus);
+        }
+        catch (Exception ex)
+        {
+            HandleTerminalPresentationFailure(ex);
+        }
     }
 
     private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -869,7 +904,33 @@ public partial class MainWindow : Window
     private async void TerminalViewportSyncTimer_Tick(object? sender, EventArgs e)
     {
         _terminalViewportSyncTimer.Stop();
-        await EnsureTerminalViewportReadyAsync("window-layout");
+        try
+        {
+            await EnsureTerminalViewportReadyAsync("window-layout");
+        }
+        catch (Exception ex)
+        {
+            HandleTerminalPresentationFailure(ex);
+        }
+    }
+
+    private void TerminalHost_Faulted(Exception ex)
+    {
+        if (Dispatcher.CheckAccess())
+        {
+            HandleTerminalPresentationFailure(ex);
+            return;
+        }
+
+        _ = Dispatcher.InvokeAsync(() => HandleTerminalPresentationFailure(ex));
+    }
+
+    private void HandleTerminalPresentationFailure(Exception ex)
+    {
+        TerminalSurface.Visibility = Visibility.Hidden;
+        TerminalUnavailableText.Text =
+            $"{LocalizationManager.Instance.Get("MainWindow_TerminalOutput")}{Environment.NewLine}{AnsiEscapeParser.StripAnsi(ex.Message)}";
+        TerminalUnavailableOverlay.Visibility = Visibility.Visible;
     }
 
     private TerminalPanelLayoutPreset CaptureCurrentTerminalPanelLayout()

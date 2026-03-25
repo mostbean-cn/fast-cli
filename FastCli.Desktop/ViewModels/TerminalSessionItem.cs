@@ -14,8 +14,12 @@ internal enum TerminalSessionOwnerKind
 
 internal sealed class TerminalSessionItem
 {
+    private const int MaxTranscriptLength = 200_000;
+    private const int TrimmedTranscriptLength = 160_000;
+
+    private readonly object _transcriptSync = new();
     private readonly StringBuilder _rawTranscriptBuilder = new();
-    private readonly StringBuilder _plainTranscriptBuilder = new();
+    private bool _hasTranscript;
 
     public TerminalSessionItem(
         TerminalSessionOwnerKind ownerKind,
@@ -59,9 +63,29 @@ internal sealed class TerminalSessionItem
 
     public bool IsClosed { get; private set; }
 
-    public string RawTranscriptText => _rawTranscriptBuilder.ToString();
+    public string RawTranscriptText
+    {
+        get
+        {
+            lock (_transcriptSync)
+            {
+                return _rawTranscriptBuilder.ToString();
+            }
+        }
+    }
 
-    public string PlainTranscriptText => _plainTranscriptBuilder.ToString();
+    public string PlainTranscriptText => AnsiEscapeParser.StripAnsi(RawTranscriptText);
+
+    public bool HasTranscript
+    {
+        get
+        {
+            lock (_transcriptSync)
+            {
+                return _hasTranscript;
+            }
+        }
+    }
 
     public void Attach(CommandSession session)
     {
@@ -71,21 +95,30 @@ internal sealed class TerminalSessionItem
         EndedAt = null;
     }
 
-    public void AppendOutput(string text)
+    public bool AppendOutput(string text)
     {
         if (string.IsNullOrEmpty(text) || IsClosed)
         {
-            return;
+            return false;
         }
 
-        _rawTranscriptBuilder.Append(text);
-        _plainTranscriptBuilder.Append(AnsiEscapeParser.StripAnsi(text));
+        lock (_transcriptSync)
+        {
+            var hadTranscript = _hasTranscript;
+            _rawTranscriptBuilder.Append(text);
+            TrimTranscriptIfNeeded(_rawTranscriptBuilder);
+            _hasTranscript = _rawTranscriptBuilder.Length > 0;
+            return !hadTranscript && _hasTranscript;
+        }
     }
 
     public void ClearTranscript()
     {
-        _rawTranscriptBuilder.Clear();
-        _plainTranscriptBuilder.Clear();
+        lock (_transcriptSync)
+        {
+            _rawTranscriptBuilder.Clear();
+            _hasTranscript = false;
+        }
     }
 
     public void MarkExited()
@@ -98,6 +131,7 @@ internal sealed class TerminalSessionItem
         IsRunning = false;
         EndedAt ??= DateTimeOffset.Now;
         ExecutorSession = null;
+        NativeTerminal = null;
     }
 
     public void MarkClosed()
@@ -106,5 +140,16 @@ internal sealed class TerminalSessionItem
         IsRunning = false;
         EndedAt ??= DateTimeOffset.Now;
         ExecutorSession = null;
+        NativeTerminal = null;
+    }
+
+    private static void TrimTranscriptIfNeeded(StringBuilder builder)
+    {
+        if (builder.Length <= MaxTranscriptLength)
+        {
+            return;
+        }
+
+        builder.Remove(0, builder.Length - TrimmedTranscriptLength);
     }
 }

@@ -34,6 +34,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly SelectionStateStore _selectionStateStore;
     private readonly List<TerminalSessionItem> _terminalSessions = [];
     private Dictionary<Guid, IReadOnlyList<CommandProfile>> _commandsByGroup = new();
+    private int _terminalOutputRefreshScheduled;
     private TerminalSessionItem? _activeTerminalSession;
     private bool _isTerminalPanelVisible;
     private bool _isTerminalMaximized;
@@ -408,7 +409,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public bool CanClearTerminalOutput => _activeTerminalSession is not null
                                          && !_activeTerminalSession.IsRunning
-                                         && !string.IsNullOrEmpty(CurrentTerminalRawText);
+                                         && _activeTerminalSession.HasTranscript;
 
     public bool HasAdHocTerminal => GetAdHocTerminalSession() is not null;
 
@@ -596,7 +597,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             var session = await _appService.StartTerminalAsync(
                 shellType,
-                line => GetUiDispatcher().Invoke(() => AppendSessionOutput(terminalSession, line.Text)));
+                line => AppendSessionOutput(terminalSession, line.Text));
 
             terminalSession.Attach(session);
             RefreshTerminalPresentation();
@@ -822,7 +823,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
             var result = await _appService.StartCommandAsync(
                 SelectedCommand.Id,
-                line => GetUiDispatcher().Invoke(() => AppendSessionOutput(commandSession, line.Text)));
+                line => AppendSessionOutput(commandSession, line.Text));
 
             if (result.Session is null)
             {
@@ -1201,20 +1202,16 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        terminalSession.AppendOutput(text);
+        var transcriptBecameAvailable = terminalSession.AppendOutput(text);
 
         if (!ReferenceEquals(_activeTerminalSession, terminalSession))
         {
             return;
         }
 
-        CurrentLogText = terminalSession.PlainTranscriptText;
-        OnPropertyChanged(nameof(CurrentTerminalRawText));
-        OnPropertyChanged(nameof(CanClearTerminalOutput));
-
-        if (terminalSession.NativeTerminal is null)
+        if (transcriptBecameAvailable || terminalSession.NativeTerminal is null)
         {
-            TerminalOutputAppended?.Invoke(text);
+            ScheduleTerminalOutputRefresh();
         }
     }
 
@@ -1846,6 +1843,37 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         RefreshOpenTerminalEntry();
+    }
+
+    private void ScheduleTerminalOutputRefresh()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+
+        if (dispatcher is null || Interlocked.Exchange(ref _terminalOutputRefreshScheduled, 1) == 1)
+        {
+            return;
+        }
+
+        _ = dispatcher.BeginInvoke(
+            DispatcherPriority.Background,
+            new Action(FlushTerminalOutputRefresh));
+    }
+
+    private void FlushTerminalOutputRefresh()
+    {
+        Interlocked.Exchange(ref _terminalOutputRefreshScheduled, 0);
+
+        if (_activeTerminalSession is null)
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(CanClearTerminalOutput));
+
+        if (_activeTerminalSession.NativeTerminal is null)
+        {
+            TerminalOutputAppended?.Invoke(_activeTerminalSession.RawTranscriptText);
+        }
     }
 
     private void PersistSelectionStateIfNeeded()

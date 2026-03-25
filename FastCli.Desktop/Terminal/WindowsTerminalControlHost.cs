@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using EasyWindowsTerminalControl;
 using Microsoft.Terminal.Wpf;
 
@@ -8,8 +11,13 @@ namespace FastCli.Desktop.Terminal;
 
 public sealed class WindowsTerminalControlHost
 {
-    private const string DefaultFontFamily = "Cascadia Mono";
-    private const int DefaultFontSize = 12;
+    private const string DefaultFontFamily = "Cascadia Code";
+    private const short DefaultFontSize = 13;
+    private static readonly FieldInfo? TerminalContainerField = typeof(TerminalControl)
+        .GetField("termContainer", BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly PropertyInfo? TerminalHandleProperty = typeof(TerminalControl).Assembly
+        .GetType("Microsoft.Terminal.Wpf.TerminalContainer")
+        ?.GetProperty("Hwnd", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
     private readonly Grid _host;
     private TerminalControl _terminalControl;
@@ -21,6 +29,8 @@ public sealed class WindowsTerminalControlHost
     private bool _displayedReadOnly;
     private bool _displayFocusRequested;
     private bool _isLoaded;
+
+    public event Action<Exception>? Faulted;
 
     public WindowsTerminalControlHost(Grid host)
     {
@@ -80,11 +90,16 @@ public sealed class WindowsTerminalControlHost
         var control = new TerminalControl
         {
             AutoResize = true,
+            Focusable = true,
+            IsTabStop = true,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            Margin = new Thickness(0)
+            Margin = new Thickness(0),
+            UseLayoutRounding = true,
+            SnapsToDevicePixels = true
         };
 
+        InputMethod.SetIsInputMethodEnabled(control, true);
         control.Loaded += TerminalControl_Loaded;
         control.Unloaded += TerminalControl_Unloaded;
         return control;
@@ -92,9 +107,16 @@ public sealed class WindowsTerminalControlHost
 
     private void TerminalControl_Loaded(object sender, RoutedEventArgs e)
     {
-        _isLoaded = true;
-        ApplyThemeIfReady();
-        AttachCurrentSession();
+        try
+        {
+            _isLoaded = true;
+            ApplyThemeIfReady();
+            AttachCurrentSession();
+        }
+        catch (Exception ex)
+        {
+            ReportFault(ex);
+        }
     }
 
     private void TerminalControl_Unloaded(object sender, RoutedEventArgs e)
@@ -110,7 +132,11 @@ public sealed class WindowsTerminalControlHost
             return;
         }
 
-        _terminalControl.SetTheme(CreateNativeTheme(_theme), DefaultFontFamily, DefaultFontSize);
+        _terminalControl.SetTheme(
+            CreateNativeTheme(_theme),
+            DefaultFontFamily,
+            DefaultFontSize,
+            ToMediaColor(_theme.Background));
     }
 
     private void AttachCurrentSession()
@@ -150,8 +176,15 @@ public sealed class WindowsTerminalControlHost
 
         _ = _host.Dispatcher.InvokeAsync(() =>
         {
-            DetachReadySubscription();
-            ApplyConnectionState();
+            try
+            {
+                DetachReadySubscription();
+                ApplyConnectionState();
+            }
+            catch (Exception ex)
+            {
+                ReportFault(ex);
+            }
         });
     }
 
@@ -203,7 +236,7 @@ public sealed class WindowsTerminalControlHost
 
         if (requestFocus)
         {
-            _terminalControl.Focus();
+            FocusTerminalControl();
         }
     }
 
@@ -257,4 +290,52 @@ public sealed class WindowsTerminalControlHost
         _readySubscribedTerm.TermReady -= DisplayedTerm_TermReady;
         _readySubscribedTerm = null;
     }
+
+    private void FocusTerminalControl()
+    {
+        _terminalControl.Focus();
+        Keyboard.Focus(_terminalControl);
+
+        var terminalHandle = GetTerminalHandle();
+
+        if (terminalHandle != IntPtr.Zero)
+        {
+            SetFocus(terminalHandle);
+        }
+    }
+
+    private IntPtr GetTerminalHandle()
+    {
+        var terminalContainer = TerminalContainerField?.GetValue(_terminalControl);
+
+        if (terminalContainer is null)
+        {
+            return IntPtr.Zero;
+        }
+
+        if (TerminalHandleProperty?.GetValue(terminalContainer) is IntPtr handle)
+        {
+            return handle;
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private static Color ToMediaColor(string hex)
+    {
+        if (ColorConverter.ConvertFromString(hex) is Color color)
+        {
+            return color;
+        }
+
+        return Colors.Black;
+    }
+
+    private void ReportFault(Exception ex)
+    {
+        Faulted?.Invoke(ex);
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetFocus(IntPtr hWnd);
 }
