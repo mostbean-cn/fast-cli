@@ -31,7 +31,6 @@ public partial class MainWindow : Window
     private GridLength _sidebarRestoreWidth = new(280);
     private GridLength _sidebarGroupsRestoreHeight = new(1, GridUnitType.Star);
     private GridLength _sidebarCommandsRestoreHeight = new(1.5, GridUnitType.Star);
-    private bool _isClosingInternally;
 
     public MainWindow(MainWindowViewModel viewModel, GitHubReleaseUpdateService updateService)
     {
@@ -195,12 +194,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void CopyLogButton_Click(object sender, RoutedEventArgs e)
+    private async void RefreshTerminalButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!string.IsNullOrEmpty(ViewModel.CurrentLogText))
-        {
-            Clipboard.SetText(ViewModel.CurrentLogText);
-        }
+        await _terminalHost.ReplaceAsync(ViewModel.CurrentTerminalRawText);
+        await _terminalHost.HardRefreshAsync();
+        await EnsureTerminalViewportReadyAsync("refresh-terminal", requestFocus: false, preserveBottom: true);
     }
 
     private async void ClearLogButton_Click(object sender, RoutedEventArgs e)
@@ -466,9 +464,54 @@ public partial class MainWindow : Window
         await EnsureTerminalViewportReadyAsync("open-terminal-shell", requestFocus: true);
     }
 
+    private void InternalTerminalSummaryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ViewModel.HasAnyInternalTerminalSession)
+        {
+            return;
+        }
+
+        InternalTerminalSessionsPopup.IsOpen = !InternalTerminalSessionsPopup.IsOpen;
+    }
+
+    private async void ActivateInternalTerminalSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: Guid sessionId })
+        {
+            return;
+        }
+
+        ViewModel.ActivateTerminalSessionById(sessionId);
+        InternalTerminalSessionsPopup.IsOpen = false;
+        await EnsureTerminalViewportReadyAsync("activate-internal-terminal-session");
+    }
+
+    private async void CloseInternalTerminalSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: Guid sessionId })
+        {
+            return;
+        }
+
+        await ViewModel.CloseTerminalSessionByIdAsync(sessionId);
+        InternalTerminalSessionsPopup.IsOpen = false;
+    }
+
     private async void CloseTerminalPanelButton_Click(object sender, RoutedEventArgs e)
     {
         await ViewModel.CloseTerminalPanelAsync();
+    }
+
+    private async void SwitchPreviousTerminalSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.SwitchToPreviousCommandTerminalSession();
+        await EnsureTerminalViewportReadyAsync("switch-prev-terminal-session");
+    }
+
+    private async void SwitchNextTerminalSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.SwitchToNextCommandTerminalSession();
+        await EnsureTerminalViewportReadyAsync("switch-next-terminal-session");
     }
 
     private async void ToggleTerminalMaximizeButton_Click(object sender, RoutedEventArgs e)
@@ -516,24 +559,14 @@ public partial class MainWindow : Window
         HideSettingsPage();
     }
 
-    private async void MainWindow_Closing(object? sender, CancelEventArgs e)
+    private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
-        if (_isClosingInternally)
+        if (!ViewModel.HasInternalTerminalsToCleanup)
         {
             return;
         }
 
-        e.Cancel = true;
-        _isClosingInternally = true;
-
-        try
-        {
-            await ViewModel.CloseAllInternalTerminalsAsync();
-        }
-        finally
-        {
-            Close();
-        }
+        ViewModel.RequestCloseAllInternalTerminals();
     }
 
     private async Task InitializeTerminalAsync()

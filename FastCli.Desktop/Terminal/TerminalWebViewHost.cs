@@ -80,6 +80,11 @@ public sealed class TerminalWebViewHost
         return ExecuteScriptAsync($"window.fastCliTerminal.replace({JsonSerializer.Serialize(text ?? string.Empty)});");
     }
 
+    public Task HardRefreshAsync()
+    {
+        return ExecuteScriptAsync("window.fastCliTerminal.hardRefresh();");
+    }
+
     public Task FocusAsync()
     {
         return ExecuteScriptAsync("window.fastCliTerminal.focus();");

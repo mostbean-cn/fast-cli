@@ -110,6 +110,31 @@
     }
   };
 
+  const forceResizeHandshake = () => {
+    const cols = terminal.cols;
+    const rows = terminal.rows;
+
+    if (!cols || !rows) {
+      return;
+    }
+
+    postMessage({ type: 'resize', cols, rows });
+
+    if (cols > 2) {
+      terminal.resize(cols - 1, rows);
+      terminal.resize(cols, rows);
+      return;
+    }
+
+    if (rows > 2) {
+      terminal.resize(cols, rows - 1);
+      terminal.resize(cols, rows);
+      return;
+    }
+
+    postMessage({ type: 'resize', cols, rows });
+  };
+
   const flushViewportSync = () => {
     if (isComposing || !pendingViewportSync) {
       return;
@@ -220,6 +245,13 @@
         terminal.write(data);
       }
       scheduleViewportSync({ reason: 'replace', requestFocus: false, preserveBottom: true }, 0);
+    },
+    hardRefresh() {
+      scheduleViewportSync({ reason: 'hard-refresh', requestFocus: false, preserveBottom: true }, 0);
+      window.setTimeout(() => {
+        forceResizeHandshake();
+        scheduleViewportSync({ reason: 'hard-refresh-resized', requestFocus: false, preserveBottom: true }, 0);
+      }, 30);
     },
     setTheme(theme) {
       if (!theme || typeof theme !== 'object') {

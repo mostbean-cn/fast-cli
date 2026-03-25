@@ -194,6 +194,30 @@
             <Setter Property="Height" Value="36" />
             <Setter Property="Padding" Value="0" />
         </Style>
+        <Style x:Key="SummaryLinkButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryBorderlessButton}">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
+        </Style>
+        <Style x:Key="SessionListLinkButtonStyle" TargetType="Button" BasedOn="{StaticResource SummaryLinkButtonStyle}">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="SidebarHeaderToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryBorderlessButton}">
             <Setter Property="Width" Value="28" />
             <Setter Property="Height" Value="28" />
@@ -549,11 +573,115 @@
                         </Grid>
                     </Button>
                     <TextBlock Text="FastCli" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding InternalTerminalSummaryText}"
-                               Margin="12,1,0,0"
-                               FontSize="12"
-                               Foreground="{DynamicResource TertiaryTextBrush}"
-                               VerticalAlignment="Center" />
+                    <Grid Margin="12,1,0,0">
+                        <Button x:Name="InternalTerminalSummaryButton"
+                                Click="InternalTerminalSummaryButton_Click"
+                                Style="{StaticResource SummaryLinkButtonStyle}">
+                            <TextBlock Text="{Binding InternalTerminalSummaryText}"
+                                       FontSize="12"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                       VerticalAlignment="Center" />
+                        </Button>
+                        <Popup x:Name="InternalTerminalSessionsPopup"
+                               PlacementTarget="{Binding ElementName=InternalTerminalSummaryButton}"
+                               Placement="Bottom"
+                               HorizontalOffset="-8"
+                               VerticalOffset="10"
+                               StaysOpen="False"
+                               AllowsTransparency="True">
+                            <Border Width="380"
+                                    Padding="12"
+                                    Background="{DynamicResource PanelBackgroundBrush}"
+                                    BorderBrush="{DynamicResource PanelBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="12">
+                                <StackPanel>
+                                    <TextBlock Text="{loc:Loc MainWindow_InternalTerminalSessionManagerTitle}"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Margin="0,0,0,10" />
+                                    <ScrollViewer MaxHeight="320"
+                                                  VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding InternalTerminalSessionItems}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border x:Name="SessionItemBorder"
+                                                            Margin="0,0,0,8"
+                                                            Padding="8"
+                                                            CornerRadius="8"
+                                                            Background="Transparent">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0"
+                                                                    Click="ActivateInternalTerminalSessionButton_Click"
+                                                                    Tag="{Binding SessionId}"
+                                                                    Style="{StaticResource SessionListLinkButtonStyle}"
+                                                                    HorizontalContentAlignment="Stretch"
+                                                                    Padding="0">
+                                                                <StackPanel>
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="{Binding Title}"
+                                                                                   FontWeight="SemiBold"
+                                                                                   TextTrimming="CharacterEllipsis" />
+                                                                        <TextBlock x:Name="CurrentSessionBadge"
+                                                                                   Text="{loc:Loc MainWindow_InternalTerminalSessionCurrent}"
+                                                                                   Margin="8,0,0,0"
+                                                                                   FontSize="11"
+                                                                                   Foreground="{DynamicResource PrimaryButtonBackgroundBrush}"
+                                                                                   Visibility="Collapsed" />
+                                                                    </StackPanel>
+                                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                        <Border x:Name="SessionStatusBadge"
+                                                                                Padding="6,2"
+                                                                                CornerRadius="999"
+                                                                                Background="{DynamicResource ControlBackgroundBrush}">
+                                                                            <TextBlock x:Name="SessionStatusText"
+                                                                                       Text="{Binding StatusText}"
+                                                                                       FontSize="10.5"
+                                                                                       Foreground="{DynamicResource SecondaryTextBrush}" />
+                                                                        </Border>
+                                                                        <TextBlock Text="{Binding Subtitle}"
+                                                                                   Margin="8,0,0,0"
+                                                                                   VerticalAlignment="Center"
+                                                                                   FontSize="11"
+                                                                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                                                                   TextTrimming="CharacterEllipsis" />
+                                                                    </StackPanel>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Grid.Column="1"
+                                                                    Click="CloseInternalTerminalSessionButton_Click"
+                                                                    Tag="{Binding SessionId}"
+                                                                    Style="{StaticResource SecondaryBorderlessButton}"
+                                                                    ToolTip="{loc:Loc MainWindow_TerminalCloseTooltip}"
+                                                                    Width="28"
+                                                                    Height="28"
+                                                                    Padding="0"
+                                                                    Margin="8,0,0,0">
+                                                                <TextBlock Text="&#xE711;" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                                            </Button>
+                                                        </Grid>
+                                                    </Border>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                            <Setter TargetName="SessionItemBorder" Property="Background" Value="{DynamicResource SelectedItemBackgroundBrush}" />
+                                                            <Setter TargetName="CurrentSessionBadge" Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                            <Setter TargetName="SessionStatusText" Property="Foreground" Value="{DynamicResource AnsiGreen}" />
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
                 </StackPanel>
                 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -1056,7 +1184,8 @@
                                     <TextBlock Text="{Binding TerminalSessionLabel}"
                                                Margin="12,0,0,0"
                                                VerticalAlignment="Center"
-                                               FontWeight="SemiBold" />
+                                               FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                                     <Border Background="{DynamicResource SelectedItemBackgroundBrush}" CornerRadius="999" Padding="8,2">
@@ -1068,16 +1197,44 @@
                                 </StackPanel>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,8,0"
+                                            Visibility="{Binding IsCommandTerminalSwitcherVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Button Click="SwitchPreviousTerminalSessionButton_Click"
+                                            IsEnabled="{Binding CanSwitchToPreviousCommandTerminalSession}"
+                                            Style="{StaticResource SecondaryBorderlessButton}"
+                                            ToolTip="{loc:Loc MainWindow_PreviousTerminalSessionTooltip}"
+                                            Width="24"
+                                            Height="24"
+                                            Padding="0">
+                                        <TextBlock Text="&#xE76B;" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                    </Button>
+                                    <TextBlock Text="{Binding CommandTerminalSessionSwitcherText}"
+                                               Margin="6,0"
+                                               VerticalAlignment="Center"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource SecondaryTextBrush}" />
+                                    <Button Click="SwitchNextTerminalSessionButton_Click"
+                                            IsEnabled="{Binding CanSwitchToNextCommandTerminalSession}"
+                                            Style="{StaticResource SecondaryBorderlessButton}"
+                                            ToolTip="{loc:Loc MainWindow_NextTerminalSessionTooltip}"
+                                            Width="24"
+                                            Height="24"
+                                            Padding="0">
+                                        <TextBlock Text="&#xE76C;" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                    </Button>
+                                </StackPanel>
                                 <Button Click="StopCommandButton_Click" IsEnabled="{Binding CanStopCommand}" Style="{StaticResource SecondaryBorderlessButton}" Foreground="{DynamicResource DangerButtonBackgroundBrush}" Margin="0,0,8,0" Padding="6,4">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="&#xE71A;" Margin="0,0,6,0" Style="{StaticResource ButtonGlyphTextStyle}" />
                                         <TextBlock Text="{loc:Loc Common_Stop}" Style="{StaticResource ButtonLabelTextStyle}" />
                                     </StackPanel>
                                 </Button>
-                                <Button Click="CopyLogButton_Click" Style="{StaticResource SecondaryBorderlessButton}" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,8,0" Padding="6,4">
+                                <Button Click="RefreshTerminalButton_Click" Style="{StaticResource SecondaryBorderlessButton}" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,8,0" Padding="6,4">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE8C8;" Margin="0,0,6,0" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                        <TextBlock Text="{loc:Loc Common_Copy}" Style="{StaticResource ButtonLabelTextStyle}" />
+                                        <TextBlock Text="&#xE72C;" Margin="0,0,6,0" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                        <TextBlock Text="{loc:Loc Common_Refresh}" Style="{StaticResource ButtonLabelTextStyle}" />
                                     </StackPanel>
                                 </Button>
                                 <Button Click="ClearLogButton_Click"
