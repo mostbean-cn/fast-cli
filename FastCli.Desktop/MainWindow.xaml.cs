@@ -28,6 +28,9 @@ public partial class MainWindow : Window
     private SettingsView? _settingsView;
     private TerminalPanelLayoutPreset? _terminalRestoreLayout;
     private Visibility _terminalSurfaceVisibilityBeforeSettings = Visibility.Visible;
+    private GridLength _sidebarRestoreWidth = new(280);
+    private GridLength _sidebarGroupsRestoreHeight = new(1, GridUnitType.Star);
+    private GridLength _sidebarCommandsRestoreHeight = new(1.5, GridUnitType.Star);
 
     public MainWindow(MainWindowViewModel viewModel, GitHubReleaseUpdateService updateService)
     {
@@ -59,6 +62,7 @@ public partial class MainWindow : Window
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         ApplyTerminalPanelLayout(ViewModel.IsTerminalPanelVisible, ViewModel.IsTerminalMaximized);
+        ApplySidebarLayout();
         await InitializeTerminalAsync();
         await ViewModel.LoadAsync();
         await _terminalHost.ReplaceAsync(ViewModel.CurrentTerminalRawText);
@@ -222,6 +226,36 @@ public partial class MainWindow : Window
         await ViewModel.RunSelectedCommandAsync();
         await EnsureTerminalViewportReadyAsync("run-command-from-list", requestFocus: true);
         e.Handled = true;
+    }
+
+    private void ToggleSidebarCollapseButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ViewModel.IsSidebarCollapsed)
+        {
+            CaptureSidebarWidth();
+        }
+
+        ViewModel.ToggleSidebarCollapse();
+    }
+
+    private void ToggleGroupsSectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ViewModel.IsGroupsSectionCollapsed && !ViewModel.IsCommandsSectionCollapsed)
+        {
+            CaptureSidebarSectionsLayout();
+        }
+
+        ViewModel.ToggleGroupsSectionCollapse();
+    }
+
+    private void ToggleCommandsSectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ViewModel.IsCommandsSectionCollapsed && !ViewModel.IsGroupsSectionCollapsed)
+        {
+            CaptureSidebarSectionsLayout();
+        }
+
+        ViewModel.ToggleCommandsSectionCollapse();
     }
 
     private void GroupListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -513,6 +547,88 @@ public partial class MainWindow : Window
                 await EnsureTerminalViewportReadyAsync("terminal-panel-layout");
             }
         }
+
+        if (e.PropertyName == nameof(MainWindowViewModel.IsSidebarCollapsed)
+            || e.PropertyName == nameof(MainWindowViewModel.IsGroupsSectionCollapsed)
+            || e.PropertyName == nameof(MainWindowViewModel.IsCommandsSectionCollapsed))
+        {
+            ApplySidebarLayout();
+        }
+    }
+
+    private void CaptureSidebarWidth()
+    {
+        var width = SidebarColumnDefinition.ActualWidth;
+
+        if (width > 0)
+        {
+            _sidebarRestoreWidth = new GridLength(width, GridUnitType.Pixel);
+        }
+    }
+
+    private void CaptureSidebarSectionsLayout()
+    {
+        if (SidebarGroupsRowDefinition.Height.Value > 0)
+        {
+            _sidebarGroupsRestoreHeight = SidebarGroupsRowDefinition.Height;
+        }
+
+        if (SidebarCommandsRowDefinition.Height.Value > 0)
+        {
+            _sidebarCommandsRestoreHeight = SidebarCommandsRowDefinition.Height;
+        }
+    }
+
+    private void ApplySidebarLayout()
+    {
+        if (ViewModel.IsSidebarCollapsed)
+        {
+            SidebarContainerBorder.Visibility = Visibility.Collapsed;
+            SidebarColumnDefinition.MinWidth = 0;
+            SidebarColumnDefinition.Width = new GridLength(0, GridUnitType.Pixel);
+            SidebarColumnSplitter.Visibility = Visibility.Collapsed;
+            SidebarSectionGridSplitter.Visibility = Visibility.Collapsed;
+            SidebarGroupsRowDefinition.Height = GridLength.Auto;
+            SidebarSectionSplitterRowDefinition.Height = new GridLength(0);
+            SidebarCommandsRowDefinition.Height = GridLength.Auto;
+            return;
+        }
+
+        SidebarContainerBorder.Visibility = Visibility.Visible;
+        SidebarColumnDefinition.MinWidth = 200;
+        SidebarColumnDefinition.Width = _sidebarRestoreWidth.Value > 0
+            ? _sidebarRestoreWidth
+            : new GridLength(280, GridUnitType.Pixel);
+        SidebarColumnSplitter.Visibility = Visibility.Visible;
+
+        var groupsCollapsed = ViewModel.IsGroupsSectionCollapsed;
+        var commandsCollapsed = ViewModel.IsCommandsSectionCollapsed;
+
+        if (!groupsCollapsed && !commandsCollapsed)
+        {
+            SidebarGroupsRowDefinition.Height = _sidebarGroupsRestoreHeight.Value > 0
+                ? _sidebarGroupsRestoreHeight
+                : new GridLength(1, GridUnitType.Star);
+            SidebarSectionSplitterRowDefinition.Height = GridLength.Auto;
+            SidebarCommandsRowDefinition.Height = _sidebarCommandsRestoreHeight.Value > 0
+                ? _sidebarCommandsRestoreHeight
+                : new GridLength(1.5, GridUnitType.Star);
+            SidebarSectionGridSplitter.Visibility = Visibility.Visible;
+            return;
+        }
+
+        SidebarSectionGridSplitter.Visibility = Visibility.Collapsed;
+        SidebarSectionSplitterRowDefinition.Height = new GridLength(0);
+
+        if (groupsCollapsed && commandsCollapsed)
+        {
+            SidebarGroupsRowDefinition.Height = GridLength.Auto;
+            SidebarCommandsRowDefinition.Height = GridLength.Auto;
+            return;
+        }
+
+        SidebarGroupsRowDefinition.Height = groupsCollapsed ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
+        SidebarCommandsRowDefinition.Height = commandsCollapsed ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
     }
 
     private TerminalTheme CreateTerminalTheme()

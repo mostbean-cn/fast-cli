@@ -49,6 +49,9 @@ public sealed class MainWindowViewModel : ObservableObject
     private bool _canSendTerminalInput;
     private bool _suppressPreviewRefresh;
     private bool _suppressSelectionPersistence;
+    private bool _isSidebarCollapsed;
+    private bool _isGroupsSectionCollapsed;
+    private bool _isCommandsSectionCollapsed;
 
     private CommandGroup? _selectedGroup;
     private CommandProfile? _selectedCommand;
@@ -334,6 +337,21 @@ public sealed class MainWindowViewModel : ObservableObject
         IsDarkTheme = !IsDarkTheme;
     }
 
+    public void ToggleSidebarCollapse()
+    {
+        IsSidebarCollapsed = !IsSidebarCollapsed;
+    }
+
+    public void ToggleGroupsSectionCollapse()
+    {
+        IsGroupsSectionCollapsed = !IsGroupsSectionCollapsed;
+    }
+
+    public void ToggleCommandsSectionCollapse()
+    {
+        IsCommandsSectionCollapsed = !IsCommandsSectionCollapsed;
+    }
+
     public bool CanCreateCommand => SelectedGroup is not null;
 
     public bool CanEditCommand => SelectedCommand is not null;
@@ -353,6 +371,66 @@ public sealed class MainWindowViewModel : ObservableObject
     }
 
     public bool CanClearTerminalOutput => !IsExecutionRunning && !string.IsNullOrEmpty(CurrentTerminalRawText);
+
+    public bool IsSidebarCollapsed
+    {
+        get => _isSidebarCollapsed;
+        private set
+        {
+            if (SetProperty(ref _isSidebarCollapsed, value))
+            {
+                OnPropertyChanged(nameof(SidebarToggleGlyph));
+                OnPropertyChanged(nameof(SidebarToggleToolTip));
+            }
+        }
+    }
+
+    public bool IsGroupsSectionCollapsed
+    {
+        get => _isGroupsSectionCollapsed;
+        private set
+        {
+            if (SetProperty(ref _isGroupsSectionCollapsed, value))
+            {
+                OnPropertyChanged(nameof(GroupsSectionToggleGlyph));
+                OnPropertyChanged(nameof(GroupsSectionToggleToolTip));
+            }
+        }
+    }
+
+    public bool IsCommandsSectionCollapsed
+    {
+        get => _isCommandsSectionCollapsed;
+        private set
+        {
+            if (SetProperty(ref _isCommandsSectionCollapsed, value))
+            {
+                OnPropertyChanged(nameof(CommandsSectionToggleGlyph));
+                OnPropertyChanged(nameof(CommandsSectionToggleToolTip));
+            }
+        }
+    }
+
+    public string SidebarToggleGlyph => IsSidebarCollapsed ? "\u25B6" : "\u25C0";
+
+    public string SidebarToggleToolTip => _localization.Get(
+        IsSidebarCollapsed
+            ? "MainWindow_SidebarExpandTooltip"
+            : "MainWindow_SidebarCollapseTooltip");
+
+    public string GroupsSectionToggleGlyph => IsGroupsSectionCollapsed ? "\u25B8" : "\u25BE";
+
+    public string GroupsSectionToggleToolTip => _localization.Get(
+        IsGroupsSectionCollapsed
+            ? "MainWindow_GroupsExpandTooltip"
+            : "MainWindow_GroupsCollapseTooltip");
+
+    public string CommandsSectionToggleGlyph => IsCommandsSectionCollapsed ? "\u25B8" : "\u25BE";
+
+    public string CommandsSectionToggleToolTip => _localization.Get(
+        IsCommandsSectionCollapsed
+            ? "MainWindow_CommandsExpandTooltip"
+            : "MainWindow_CommandsCollapseTooltip");
 
     public string TerminalMaximizeButtonText => _localization.Get(
         IsTerminalMaximized
@@ -995,6 +1073,9 @@ public sealed class MainWindowViewModel : ObservableObject
         RefreshTerminalStatus();
         OnPropertyChanged(nameof(TerminalMaximizeButtonText));
         OnPropertyChanged(nameof(TerminalMaximizeToolTip));
+        OnPropertyChanged(nameof(SidebarToggleToolTip));
+        OnPropertyChanged(nameof(GroupsSectionToggleToolTip));
+        OnPropertyChanged(nameof(CommandsSectionToggleToolTip));
     }
 
     private void UpdateLocalizedOptionLabels()

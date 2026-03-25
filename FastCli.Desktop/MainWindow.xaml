@@ -194,6 +194,39 @@
             <Setter Property="Height" Value="36" />
             <Setter Property="Padding" Value="0" />
         </Style>
+        <Style x:Key="SidebarHeaderToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="ButtonGlyphTextStyle" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -410,14 +443,20 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Image Source="/assets/FastCliHeader.png"
-                           Width="24"
-                           Height="24"
-                           Margin="0,0,10,0"
-                           VerticalAlignment="Center"
-                           Stretch="Fill"
-                           SnapsToDevicePixels="True"
-                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <Button Click="ToggleSidebarCollapseButton_Click"
+                            Style="{StaticResource SidebarHeaderToggleButtonStyle}"
+                            ToolTip="{Binding SidebarToggleToolTip}"
+                            Margin="0,0,10,0">
+                        <Grid Width="14" Height="14">
+                            <Border BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                    BorderThickness="1"
+                                    CornerRadius="2" />
+                            <Border Width="1"
+                                    Margin="4,2,0,2"
+                                    HorizontalAlignment="Left"
+                                    Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Grid>
+                    </Button>
                     <TextBlock Text="FastCli" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
                 </StackPanel>
                 
@@ -461,93 +500,189 @@
         <Grid Grid.Row="1">
             <Grid x:Name="WorkspaceContent">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="280" MinWidth="200" />
+                    <ColumnDefinition x:Name="SidebarColumnDefinition" Width="280" MinWidth="0" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 
                 <!-- Left Sidebar (Groups + Commands) -->
-                <Border Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,0,1,0">
+                <Border x:Name="SidebarContainerBorder" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,0,1,0">
                     <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" MinHeight="100"/>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="1.5*" MinHeight="150" />
-                        </Grid.RowDefinitions>
-                    
-                    <!-- Groups -->
-                    <DockPanel Grid.Row="0" Margin="12">
-                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8" HorizontalAlignment="Stretch">
-                            <TextBlock Text="{loc:Loc MainWindow_Groups}" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Width="80"/>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Width="170" FlowDirection="RightToLeft">
-                                <Button Click="DeleteGroupButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc Common_Delete}" Foreground="{DynamicResource DangerButtonBackgroundBrush}">
-                                    <TextBlock Text="&#xE74D;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                </Button>
-                                <Button Click="RenameGroupButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc Common_Rename}">
-                                    <TextBlock Text="&#xE70F;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                </Button>
-                                <Button Click="AddGroupButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc MainWindow_NewGroupTooltip}">
-                                    <TextBlock Text="&#xE710;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                </Button>
-                            </StackPanel>
-                        </StackPanel>
-                        <ListBox x:Name="GroupListBox" ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}" DisplayMemberPath="Name" AllowDrop="True" Background="Transparent" Foreground="{DynamicResource PrimaryTextBrush}" BorderThickness="0" PreviewMouseLeftButtonDown="GroupListBox_PreviewMouseLeftButtonDown" MouseMove="GroupListBox_MouseMove" Drop="GroupListBox_Drop" DragOver="GroupListBox_DragOver" />
-                    </DockPanel>
-                    
-                    <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch" Cursor="SizeNS" Style="{StaticResource SubtleGridSplitterStyle}" />
-                    
-                    <!-- Commands -->
-                    <DockPanel Grid.Row="2" Margin="12">
-                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-                            <TextBlock Text="{loc:Loc MainWindow_Commands}" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Width="80" />
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Width="170" FlowDirection="RightToLeft">
-                                <Button Click="DeleteCommandButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc Common_Delete}" Foreground="{DynamicResource DangerButtonBackgroundBrush}" IsEnabled="{Binding CanEditCommand}">
-                                    <TextBlock Text="&#xE74D;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                </Button>
-                                <Button Click="DuplicateCommandButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc Common_Duplicate}" IsEnabled="{Binding CanEditCommand}">
-                                    <TextBlock Text="&#xE8C8;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                </Button>
-                                <Button Click="AddCommandButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc MainWindow_NewCommandTooltip}" IsEnabled="{Binding CanCreateCommand}">
-                                    <TextBlock Text="&#xE710;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                </Button>
-                            </StackPanel>
-                        </StackPanel>
-                        <ListBox x:Name="CommandListBox" ItemsSource="{Binding Commands}" SelectedItem="{Binding SelectedCommand, Mode=TwoWay}" AllowDrop="True" Background="Transparent" Foreground="{DynamicResource PrimaryTextBrush}" BorderThickness="0" PreviewMouseLeftButtonDown="CommandListBox_PreviewMouseLeftButtonDown" MouseMove="CommandListBox_MouseMove" Drop="CommandListBox_Drop" DragOver="CommandListBox_DragOver" MouseDoubleClick="CommandListBox_MouseDoubleClick">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid>
+                        <Grid x:Name="ExpandedSidebarHost">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSidebarCollapsed}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <Grid Margin="12">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition x:Name="SidebarGroupsRowDefinition" Height="*" />
+                                    <RowDefinition x:Name="SidebarSectionSplitterRowDefinition" Height="Auto" />
+                                    <RowDefinition x:Name="SidebarCommandsRowDefinition" Height="1.5*" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Groups -->
+                                <DockPanel Grid.Row="0">
+                                    <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" />
-                                            <TextBlock FontSize="11" Foreground="{DynamicResource TertiaryTextBrush}" Margin="0,2,0,0">
-                                                <TextBlock.Text>
-                                                    <MultiBinding Converter="{StaticResource ShellTypeDisplayConverter}">
-                                                        <Binding Path="ShellType" />
-                                                        <Binding Path="CurrentLanguage" Source="{x:Static loc:LocalizationManager.Instance}" />
-                                                    </MultiBinding>
-                                                </TextBlock.Text>
-                                            </TextBlock>
+                                        <TextBlock Text="{loc:Loc MainWindow_Groups}"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource SecondaryTextBrush}"
+                                                   VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button Click="AddGroupButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc MainWindow_NewGroupTooltip}">
+                                                <TextBlock Text="&#xE710;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            </Button>
+                                            <Button Click="RenameGroupButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc Common_Rename}">
+                                                <TextBlock Text="&#xE70F;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            </Button>
+                                            <Button Click="DeleteGroupButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc Common_Delete}" Foreground="{DynamicResource DangerButtonBackgroundBrush}">
+                                                <TextBlock Text="&#xE74D;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            </Button>
+                                            <Button Click="ToggleGroupsSectionButton_Click"
+                                                    Style="{StaticResource SecondaryBorderlessButton}"
+                                                    ToolTip="{Binding GroupsSectionToggleToolTip}"
+                                                    Margin="8,0,0,0">
+                                                <TextBlock Text="{Binding GroupsSectionToggleGlyph}"
+                                                           FontSize="13"
+                                                           FontWeight="Bold"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Center" />
+                                            </Button>
                                         </StackPanel>
-                                        <Button Grid.Column="1"
-                                                Margin="8,0,0,0"
-                                                Padding="8,4"
-                                                ToolTip="{loc:Loc MainWindow_StartTooltip}"
-                                                Click="RunCommandFromListButton_Click"
-                                                Style="{StaticResource SecondaryBorderlessButton}">
-                                            <TextBlock Text="&#xE768;" FontSize="12" Style="{StaticResource ButtonGlyphTextStyle}" />
-                                        </Button>
                                     </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </DockPanel>
+                                    <ListBox x:Name="GroupListBox"
+                                             ItemsSource="{Binding Groups}"
+                                             SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
+                                             DisplayMemberPath="Name"
+                                             AllowDrop="True"
+                                             Background="Transparent"
+                                             Foreground="{DynamicResource PrimaryTextBrush}"
+                                             BorderThickness="0"
+                                             PreviewMouseLeftButtonDown="GroupListBox_PreviewMouseLeftButtonDown"
+                                             MouseMove="GroupListBox_MouseMove"
+                                             Drop="GroupListBox_Drop"
+                                             DragOver="GroupListBox_DragOver">
+                                        <ListBox.Style>
+                                            <Style TargetType="ListBox">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsGroupsSectionCollapsed}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ListBox.Style>
+                                    </ListBox>
+                                </DockPanel>
+
+                                <GridSplitter x:Name="SidebarSectionGridSplitter"
+                                              Grid.Row="1"
+                                              Height="6"
+                                              HorizontalAlignment="Stretch"
+                                              Cursor="SizeNS"
+                                              Style="{StaticResource SubtleGridSplitterStyle}" />
+
+                                <!-- Commands -->
+                                <DockPanel Grid.Row="2">
+                                    <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{loc:Loc MainWindow_Commands}"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource SecondaryTextBrush}"
+                                                   VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button Click="AddCommandButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc MainWindow_NewCommandTooltip}" IsEnabled="{Binding CanCreateCommand}">
+                                                <TextBlock Text="&#xE710;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            </Button>
+                                            <Button Click="DuplicateCommandButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc Common_Duplicate}" IsEnabled="{Binding CanEditCommand}">
+                                                <TextBlock Text="&#xE8C8;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            </Button>
+                                            <Button Click="DeleteCommandButton_Click" Style="{StaticResource SecondaryBorderlessButton}" ToolTip="{loc:Loc Common_Delete}" Foreground="{DynamicResource DangerButtonBackgroundBrush}" IsEnabled="{Binding CanEditCommand}">
+                                                <TextBlock Text="&#xE74D;" FontSize="14" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            </Button>
+                                            <Button Click="ToggleCommandsSectionButton_Click"
+                                                    Style="{StaticResource SecondaryBorderlessButton}"
+                                                    ToolTip="{Binding CommandsSectionToggleToolTip}"
+                                                    Margin="8,0,0,0">
+                                                <TextBlock Text="{Binding CommandsSectionToggleGlyph}"
+                                                           FontSize="13"
+                                                           FontWeight="Bold"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Center" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                    <ListBox x:Name="CommandListBox"
+                                             ItemsSource="{Binding Commands}"
+                                             SelectedItem="{Binding SelectedCommand, Mode=TwoWay}"
+                                             AllowDrop="True"
+                                             Background="Transparent"
+                                             Foreground="{DynamicResource PrimaryTextBrush}"
+                                             BorderThickness="0"
+                                             PreviewMouseLeftButtonDown="CommandListBox_PreviewMouseLeftButtonDown"
+                                             MouseMove="CommandListBox_MouseMove"
+                                             Drop="CommandListBox_Drop"
+                                             DragOver="CommandListBox_DragOver"
+                                             MouseDoubleClick="CommandListBox_MouseDoubleClick">
+                                        <ListBox.Style>
+                                            <Style TargetType="ListBox">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCommandsSectionCollapsed}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ListBox.Style>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" />
+                                                        <TextBlock FontSize="11" Foreground="{DynamicResource TertiaryTextBrush}" Margin="0,2,0,0">
+                                                            <TextBlock.Text>
+                                                                <MultiBinding Converter="{StaticResource ShellTypeDisplayConverter}">
+                                                                    <Binding Path="ShellType" />
+                                                                    <Binding Path="CurrentLanguage" Source="{x:Static loc:LocalizationManager.Instance}" />
+                                                                </MultiBinding>
+                                                            </TextBlock.Text>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1"
+                                                            Margin="8,0,0,0"
+                                                            Padding="8,4"
+                                                            ToolTip="{loc:Loc MainWindow_StartTooltip}"
+                                                            Click="RunCommandFromListButton_Click"
+                                                            Style="{StaticResource SecondaryBorderlessButton}">
+                                                        <TextBlock Text="&#xE768;" FontSize="12" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                                    </Button>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </DockPanel>
+                            </Grid>
+                        </Grid>
                     </Grid>
                 </Border>
                 
-                <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Center" Cursor="SizeWE" Style="{StaticResource SubtleGridSplitterStyle}" />
+                <GridSplitter x:Name="SidebarColumnSplitter" Grid.Column="1" Width="8" HorizontalAlignment="Center" Cursor="SizeWE" Style="{StaticResource SubtleGridSplitterStyle}" />
                 
                 <!-- Right Area (Editor + Terminal) -->
                 <Grid Grid.Column="2">
