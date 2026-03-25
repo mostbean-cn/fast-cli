@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
@@ -12,6 +13,7 @@ namespace FastCli.Desktop.Services;
 
 public sealed class GitHubReleaseUpdateService
 {
+    private static readonly TimeSpan AutoCheckCooldown = TimeSpan.FromHours(1);
     private const string RepositoryOwner = "mostbean-cn";
     private const string RepositoryName = "fast-cli";
     private const string LatestReleaseApiUrl = $"https://api.github.com/repos/{RepositoryOwner}/{RepositoryName}/releases/latest";
@@ -83,27 +85,46 @@ public sealed class GitHubReleaseUpdateService
             return;
         }
 
-        GitHubReleaseInfo? latestRelease;
+        var state = await _updateStateStore.LoadAsync(cancellationToken);
+
+        if (!userInitiated && IsAutoCheckCoolingDown(state.LastAutoCheckUtc))
+        {
+            return;
+        }
+
+        if (!userInitiated)
+        {
+            state.LastAutoCheckUtc = DateTimeOffset.UtcNow;
+            await _updateStateStore.SaveAsync(state, cancellationToken);
+        }
+
+        LatestReleaseQueryResult latestReleaseResult;
 
         try
         {
-            latestRelease = await GetLatestReleaseAsync(cancellationToken);
+            latestReleaseResult = await GetLatestReleaseAsync(cancellationToken);
         }
         catch
         {
             return;
         }
 
+        var latestRelease = latestReleaseResult.Release;
+
         if (latestRelease is null)
         {
             if (userInitiated)
             {
+                var message = latestReleaseResult.FailureReason == LatestReleaseFailureReason.RateLimited
+                    ? BuildRateLimitMessage(latestReleaseResult.RateLimitResetAtUtc)
+                    : _localizer.Get("Update_CannotFetchLatest");
+
                 await _dialogService.ShowAsync(
                     owner,
                     _dialogOptionsFactory.CreateInformation(
                         _localizer.Get("Update_CheckTitle"),
                         _localizer.Get("Update_CheckTitle"),
-                        _localizer.Get("Update_CannotFetchLatest")));
+                        message));
             }
 
             return;
@@ -123,8 +144,6 @@ public sealed class GitHubReleaseUpdateService
 
             return;
         }
-
-        var state = await _updateStateStore.LoadAsync(cancellationToken);
 
         if (!userInitiated && string.Equals(state.SkippedVersion, latestRelease.VersionText, StringComparison.OrdinalIgnoreCase))
         {
@@ -164,7 +183,7 @@ public sealed class GitHubReleaseUpdateService
         }
     }
 
-    private async Task<GitHubReleaseInfo?> GetLatestReleaseAsync(CancellationToken cancellationToken)
+    private async Task<LatestReleaseQueryResult> GetLatestReleaseAsync(CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseApiUrl);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
@@ -174,7 +193,7 @@ public sealed class GitHubReleaseUpdateService
 
         if (!response.IsSuccessStatusCode)
         {
-            return null;
+            return CreateFailureResult(response);
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -182,37 +201,37 @@ public sealed class GitHubReleaseUpdateService
 
         if (release is null || release.Draft || release.Prerelease)
         {
-            return null;
+            return LatestReleaseQueryResult.Failed();
         }
 
         var versionText = NormalizeVersionText(release.TagName);
         if (string.IsNullOrWhiteSpace(versionText))
         {
-            return null;
+            return LatestReleaseQueryResult.Failed();
         }
 
         var version = ParseVersion(versionText);
 
         if (version is null)
         {
-            return null;
+            return LatestReleaseQueryResult.Failed();
         }
 
         var installerAsset = SelectInstallerAsset(release.Assets, versionText);
 
         if (installerAsset is null || string.IsNullOrWhiteSpace(installerAsset.BrowserDownloadUrl))
         {
-            return null;
+            return LatestReleaseQueryResult.Failed();
         }
 
-        return new GitHubReleaseInfo
+        return LatestReleaseQueryResult.Succeeded(new GitHubReleaseInfo
         {
             Version = version,
             VersionText = versionText,
             ReleaseNotes = release.Body ?? string.Empty,
             InstallerName = installerAsset.Name ?? $"FastCli-Setup-v{versionText}.exe",
             InstallerDownloadUrl = installerAsset.BrowserDownloadUrl
-        };
+        });
     }
 
     private async Task<string> DownloadInstallerAsync(GitHubReleaseInfo release, CancellationToken cancellationToken)
@@ -246,6 +265,57 @@ public sealed class GitHubReleaseUpdateService
         return string.IsNullOrWhiteSpace(release.ReleaseNotes)
             ? _localizer.Get("Update_NoReleaseNotes")
             : release.ReleaseNotes.Replace("\r\n", "\n").Trim();
+    }
+
+    private string BuildRateLimitMessage(DateTimeOffset? rateLimitResetAtUtc)
+    {
+        if (rateLimitResetAtUtc is null)
+        {
+            return _localizer.Get("Update_RateLimitExceeded");
+        }
+
+        var localTimeText = rateLimitResetAtUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+        return _localizer.Format("Update_RateLimitExceededWithReset", localTimeText);
+    }
+
+    private static bool IsAutoCheckCoolingDown(DateTimeOffset? lastAutoCheckUtc)
+    {
+        return lastAutoCheckUtc is not null
+               && DateTimeOffset.UtcNow - lastAutoCheckUtc.Value < AutoCheckCooldown;
+    }
+
+    private static LatestReleaseQueryResult CreateFailureResult(HttpResponseMessage response)
+    {
+        var statusCode = response.StatusCode;
+        var isRateLimited = statusCode == HttpStatusCode.Forbidden
+                            || statusCode == HttpStatusCode.TooManyRequests;
+
+        return isRateLimited
+            ? LatestReleaseQueryResult.RateLimited(GetRateLimitResetAtUtc(response))
+            : LatestReleaseQueryResult.Failed();
+    }
+
+    private static DateTimeOffset? GetRateLimitResetAtUtc(HttpResponseMessage response)
+    {
+        if (!response.Headers.TryGetValues("x-ratelimit-reset", out var values))
+        {
+            return null;
+        }
+
+        var rawValue = values.FirstOrDefault();
+        if (!long.TryParse(rawValue, out var resetUnixSeconds))
+        {
+            return null;
+        }
+
+        try
+        {
+            return DateTimeOffset.FromUnixTimeSeconds(resetUnixSeconds);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string? NormalizeVersionText(string? versionText)
@@ -344,5 +414,47 @@ public sealed class GitHubReleaseUpdateService
         public required string InstallerName { get; init; }
 
         public required string InstallerDownloadUrl { get; init; }
+    }
+
+    private sealed class LatestReleaseQueryResult
+    {
+        public GitHubReleaseInfo? Release { get; init; }
+
+        public LatestReleaseFailureReason FailureReason { get; init; }
+
+        public DateTimeOffset? RateLimitResetAtUtc { get; init; }
+
+        public static LatestReleaseQueryResult Succeeded(GitHubReleaseInfo release)
+        {
+            return new LatestReleaseQueryResult
+            {
+                Release = release,
+                FailureReason = LatestReleaseFailureReason.None
+            };
+        }
+
+        public static LatestReleaseQueryResult Failed()
+        {
+            return new LatestReleaseQueryResult
+            {
+                FailureReason = LatestReleaseFailureReason.Unknown
+            };
+        }
+
+        public static LatestReleaseQueryResult RateLimited(DateTimeOffset? resetAtUtc)
+        {
+            return new LatestReleaseQueryResult
+            {
+                FailureReason = LatestReleaseFailureReason.RateLimited,
+                RateLimitResetAtUtc = resetAtUtc
+            };
+        }
+    }
+
+    private enum LatestReleaseFailureReason
+    {
+        None,
+        Unknown,
+        RateLimited
     }
 }
