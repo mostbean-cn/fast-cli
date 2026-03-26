@@ -25,7 +25,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly LocalizationManager _localization;
     private readonly SelectionStateStore _selectionStateStore;
     private readonly IReadOnlyList<ShellType> _installedCommandShellTypes;
-    private readonly ObservableCollection<OptionItem<ShellType>> _shellTypeOptions;
+    private ObservableCollection<OptionItem<ShellType>> _shellTypeOptions;
     private readonly ObservableCollection<OptionItem<ShellType>> _terminalShellTypeOptions;
     private readonly List<TerminalSessionItem> _terminalSessions = [];
     private Dictionary<Guid, IReadOnlyList<CommandProfile>> _commandsByGroup = new();
@@ -185,7 +185,6 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             if (SetProperty(ref _editedShellType, value))
             {
-                RefreshEditorShellOptions();
                 RefreshPreviewSafe();
             }
         }
@@ -995,6 +994,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             if (SelectedCommand is null)
             {
+                RefreshEditorShellOptions(GetDefaultCommandShellType());
                 EditedName = string.Empty;
                 EditedDescription = string.Empty;
                 EditedWorkingDirectory = string.Empty;
@@ -1009,6 +1009,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 return;
             }
 
+            RefreshEditorShellOptions(SelectedCommand.ShellType);
             EditedName = SelectedCommand.Name;
             EditedDescription = SelectedCommand.Description;
             EditedWorkingDirectory = SelectedCommand.WorkingDirectory ?? string.Empty;
@@ -1274,17 +1275,17 @@ public sealed class MainWindowViewModel : ObservableObject
         RunModeOptions[1].Label = _localization.Get("RunMode_ExternalTerminal");
     }
 
-    private void RefreshEditorShellOptions()
+    private void RefreshEditorShellOptions(ShellType selectedShellType)
     {
         var visibleShellTypes = new List<ShellType>(_installedCommandShellTypes);
-        if (!visibleShellTypes.Contains(EditedShellType))
+        if (!visibleShellTypes.Contains(selectedShellType))
         {
-            visibleShellTypes.Add(EditedShellType);
+            visibleShellTypes.Add(selectedShellType);
         }
 
-        var rebuiltOptions = BuildShellTypeOptions(visibleShellTypes);
-        ReplaceCollection(_shellTypeOptions, rebuiltOptions);
+        _shellTypeOptions = BuildShellTypeOptions(visibleShellTypes);
         UpdateLocalizedOptionLabels();
+        OnPropertyChanged(nameof(AvailableShellTypes));
     }
 
     private ShellType GetDefaultCommandShellType()
