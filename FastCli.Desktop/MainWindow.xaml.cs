@@ -19,8 +19,15 @@ namespace FastCli.Desktop;
 
 public partial class MainWindow : Window
 {
+    private const string DragHintNone = "";
+    private const string DragHintTarget = "Target";
+    private const string DragHintInsertBefore = "InsertBefore";
+    private const string DragHintInsertAfter = "InsertAfter";
+
     private Point _groupDragStartPoint;
     private Point _commandDragStartPoint;
+    private ListBoxItem? _activeGroupDropItem;
+    private ListBoxItem? _activeCommandDropItem;
     private readonly GitHubReleaseUpdateService _updateService;
     private readonly AppDialogOptionsFactory _dialogOptionsFactory;
     private readonly TerminalWebViewHost _terminalHost;
@@ -59,6 +66,22 @@ public partial class MainWindow : Window
     }
 
     public MainWindowViewModel ViewModel { get; }
+
+    public static readonly DependencyProperty DragHintProperty = DependencyProperty.RegisterAttached(
+        "DragHint",
+        typeof(string),
+        typeof(MainWindow),
+        new FrameworkPropertyMetadata(DragHintNone, FrameworkPropertyMetadataOptions.Inherits));
+
+    public static string GetDragHint(DependencyObject element)
+    {
+        return (string)element.GetValue(DragHintProperty);
+    }
+
+    public static void SetDragHint(DependencyObject element, string value)
+    {
+        element.SetValue(DragHintProperty, value);
+    }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
@@ -277,39 +300,78 @@ public partial class MainWindow : Window
         if (group is not null)
         {
             DragDrop.DoDragDrop(GroupListBox, new DataObject(typeof(CommandGroup), group), DragDropEffects.Move);
+            ClearGroupDropHint();
         }
     }
 
     private async void GroupListBox_Drop(object sender, DragEventArgs e)
     {
+        if (sender is not ListBox listBox)
+        {
+            return;
+        }
+
         if (e.Data.GetDataPresent(typeof(CommandGroup)))
         {
             var source = e.Data.GetData(typeof(CommandGroup)) as CommandGroup;
-            var target = FindDataContext<CommandGroup>(e.OriginalSource as DependencyObject);
+            var (targetItem, effectiveTargetId, _) = ResolveGroupDropHint(listBox, e, reorderGroups: true);
 
-            if (source is not null && (target is null || source.Id != target.Id))
+            if (source is not null && (!effectiveTargetId.HasValue || effectiveTargetId.Value != source.Id))
             {
-                await ViewModel.MoveGroupAsync(source.Id, target?.Id);
+                await ViewModel.MoveGroupAsync(source.Id, effectiveTargetId);
             }
         }
         else if (e.Data.GetDataPresent(typeof(CommandProfile)))
         {
             var source = e.Data.GetData(typeof(CommandProfile)) as CommandProfile;
-            var target = FindDataContext<CommandGroup>(e.OriginalSource as DependencyObject);
+            var (targetItem, _, _) = ResolveGroupDropHint(listBox, e, reorderGroups: false);
+            var target = targetItem?.DataContext as CommandGroup;
 
             if (source is not null && target is not null && source.GroupId != target.Id)
             {
                 await ViewModel.MoveCommandToGroupAsync(source.Id, target.Id);
             }
         }
+
+        ClearGroupDropHint();
     }
 
     private void GroupListBox_DragOver(object sender, DragEventArgs e)
     {
-        e.Effects = e.Data.GetDataPresent(typeof(CommandGroup)) || e.Data.GetDataPresent(typeof(CommandProfile))
-            ? DragDropEffects.Move
-            : DragDropEffects.None;
+        if (sender is not ListBox listBox)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Data.GetDataPresent(typeof(CommandGroup)))
+        {
+            var (targetItem, _, dragHint) = ResolveGroupDropHint(listBox, e, reorderGroups: true);
+            SetGroupDropHint(targetItem, dragHint);
+            e.Effects = DragDropEffects.Move;
+        }
+        else if (e.Data.GetDataPresent(typeof(CommandProfile)))
+        {
+            var (targetItem, _, dragHint) = ResolveGroupDropHint(listBox, e, reorderGroups: false);
+            SetGroupDropHint(targetItem, dragHint);
+            e.Effects = DragDropEffects.Move;
+        }
+        else
+        {
+            ClearGroupDropHint();
+            e.Effects = DragDropEffects.None;
+        }
+
         e.Handled = true;
+    }
+
+    private void GroupListBox_DragLeave(object sender, DragEventArgs e)
+    {
+        if (sender is ListBox listBox && !IsPointInside(listBox, e.GetPosition(listBox)))
+        {
+            ClearGroupDropHint();
+        }
     }
 
     private void CommandListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -329,37 +391,226 @@ public partial class MainWindow : Window
         if (command is not null)
         {
             DragDrop.DoDragDrop(CommandListBox, new DataObject(typeof(CommandProfile), command), DragDropEffects.Move);
+            ClearCommandDropHint();
         }
     }
 
     private async void CommandListBox_Drop(object sender, DragEventArgs e)
     {
+        if (sender is not ListBox listBox)
+        {
+            return;
+        }
+
         if (!e.Data.GetDataPresent(typeof(CommandProfile)))
         {
             return;
         }
 
         var source = e.Data.GetData(typeof(CommandProfile)) as CommandProfile;
-        var target = FindDataContext<CommandProfile>(e.OriginalSource as DependencyObject);
+        var (_, effectiveTargetId, _) = ResolveCommandDropHint(listBox, e);
 
-        if (source is not null && (target is null || source.Id != target.Id))
+        if (source is not null && (!effectiveTargetId.HasValue || effectiveTargetId.Value != source.Id))
         {
-            await ViewModel.MoveCommandWithinSelectedGroupAsync(source.Id, target?.Id);
+            await ViewModel.MoveCommandWithinSelectedGroupAsync(source.Id, effectiveTargetId);
         }
+
+        ClearCommandDropHint();
     }
 
     private void CommandListBox_DragOver(object sender, DragEventArgs e)
     {
-        e.Effects = e.Data.GetDataPresent(typeof(CommandProfile))
-            ? DragDropEffects.Move
-            : DragDropEffects.None;
+        if (sender is not ListBox listBox)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Data.GetDataPresent(typeof(CommandProfile)))
+        {
+            var (targetItem, _, dragHint) = ResolveCommandDropHint(listBox, e);
+            SetCommandDropHint(targetItem, dragHint);
+            e.Effects = DragDropEffects.Move;
+        }
+        else
+        {
+            ClearCommandDropHint();
+            e.Effects = DragDropEffects.None;
+        }
+
         e.Handled = true;
+    }
+
+    private void CommandListBox_DragLeave(object sender, DragEventArgs e)
+    {
+        if (sender is ListBox listBox && !IsPointInside(listBox, e.GetPosition(listBox)))
+        {
+            ClearCommandDropHint();
+        }
+    }
+
+    private (ListBoxItem? TargetItem, Guid? EffectiveTargetId, string DragHint) ResolveGroupDropHint(ListBox listBox, DragEventArgs e, bool reorderGroups)
+    {
+        var targetItem = FindAncestorListBoxItem(e.OriginalSource as DependencyObject);
+        if (targetItem?.DataContext is not CommandGroup targetGroup)
+        {
+            if (!reorderGroups)
+            {
+                return (null, null, DragHintNone);
+            }
+
+            targetItem = GetLastListBoxItem(listBox);
+            if (targetItem?.DataContext is not CommandGroup)
+            {
+                return (null, null, DragHintNone);
+            }
+
+            return (targetItem, null, DragHintInsertAfter);
+        }
+
+        if (!reorderGroups)
+        {
+            return (targetItem, targetGroup.Id, DragHintTarget);
+        }
+
+        var insertAfter = IsPointerInLowerHalf(targetItem, e);
+        return (
+            targetItem,
+            insertAfter ? GetNextGroupId(listBox, targetItem) : targetGroup.Id,
+            insertAfter ? DragHintInsertAfter : DragHintInsertBefore);
+    }
+
+    private (ListBoxItem? TargetItem, Guid? EffectiveTargetId, string DragHint) ResolveCommandDropHint(ListBox listBox, DragEventArgs e)
+    {
+        var targetItem = FindAncestorListBoxItem(e.OriginalSource as DependencyObject);
+        if (targetItem?.DataContext is not CommandProfile targetCommand)
+        {
+            targetItem = GetLastListBoxItem(listBox);
+            if (targetItem?.DataContext is not CommandProfile)
+            {
+                return (null, null, DragHintNone);
+            }
+
+            return (targetItem, null, DragHintInsertAfter);
+        }
+
+        var insertAfter = IsPointerInLowerHalf(targetItem, e);
+        return (
+            targetItem,
+            insertAfter ? GetNextCommandId(listBox, targetItem) : targetCommand.Id,
+            insertAfter ? DragHintInsertAfter : DragHintInsertBefore);
+    }
+
+    private void SetGroupDropHint(ListBoxItem? item, string dragHint)
+    {
+        SetDropHint(ref _activeGroupDropItem, item, dragHint);
+    }
+
+    private void ClearGroupDropHint()
+    {
+        ClearDropHint(ref _activeGroupDropItem);
+    }
+
+    private void SetCommandDropHint(ListBoxItem? item, string dragHint)
+    {
+        SetDropHint(ref _activeCommandDropItem, item, dragHint);
+    }
+
+    private void ClearCommandDropHint()
+    {
+        ClearDropHint(ref _activeCommandDropItem);
+    }
+
+    private static void SetDropHint(ref ListBoxItem? activeItem, ListBoxItem? nextItem, string dragHint)
+    {
+        if (ReferenceEquals(activeItem, nextItem))
+        {
+            if (nextItem is not null && GetDragHint(nextItem) != dragHint)
+            {
+                SetDragHint(nextItem, dragHint);
+            }
+
+            return;
+        }
+
+        ClearDropHint(ref activeItem);
+
+        if (nextItem is not null)
+        {
+            SetDragHint(nextItem, dragHint);
+            activeItem = nextItem;
+        }
+    }
+
+    private static void ClearDropHint(ref ListBoxItem? activeItem)
+    {
+        if (activeItem is null)
+        {
+            return;
+        }
+
+        SetDragHint(activeItem, DragHintNone);
+        activeItem = null;
     }
 
     private static bool IsDragDistanceExceeded(Point origin, Point current)
     {
         return Math.Abs(current.X - origin.X) > SystemParameters.MinimumHorizontalDragDistance
                || Math.Abs(current.Y - origin.Y) > SystemParameters.MinimumVerticalDragDistance;
+    }
+
+    private static bool IsPointerInLowerHalf(FrameworkElement element, DragEventArgs e)
+    {
+        return e.GetPosition(element).Y > element.ActualHeight / 2;
+    }
+
+    private static bool IsPointInside(FrameworkElement element, Point point)
+    {
+        return point.X >= 0
+               && point.Y >= 0
+               && point.X <= element.ActualWidth
+               && point.Y <= element.ActualHeight;
+    }
+
+    private static ListBoxItem? FindAncestorListBoxItem(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is ListBoxItem item)
+            {
+                return item;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return null;
+    }
+
+    private static ListBoxItem? GetLastListBoxItem(ListBox listBox)
+    {
+        return listBox.Items.Count == 0
+            ? null
+            : listBox.ItemContainerGenerator.ContainerFromIndex(listBox.Items.Count - 1) as ListBoxItem;
+    }
+
+    private static Guid? GetNextGroupId(ListBox listBox, ListBoxItem currentItem)
+    {
+        var currentIndex = listBox.ItemContainerGenerator.IndexFromContainer(currentItem);
+        var nextIndex = currentIndex + 1;
+        return nextIndex >= 0 && nextIndex < listBox.Items.Count
+            ? (listBox.Items[nextIndex] as CommandGroup)?.Id
+            : null;
+    }
+
+    private static Guid? GetNextCommandId(ListBox listBox, ListBoxItem currentItem)
+    {
+        var currentIndex = listBox.ItemContainerGenerator.IndexFromContainer(currentItem);
+        var nextIndex = currentIndex + 1;
+        return nextIndex >= 0 && nextIndex < listBox.Items.Count
+            ? (listBox.Items[nextIndex] as CommandProfile)?.Id
+            : null;
     }
 
     private static T? FindDataContext<T>(DependencyObject? source)
