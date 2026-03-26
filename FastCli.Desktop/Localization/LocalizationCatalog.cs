@@ -20,7 +20,7 @@ internal static class LocalizationCatalog
             ["Common_Delete"] = "删除",
             ["Common_Duplicate"] = "复制",
             ["Common_GotIt"] = "知道了",
-            ["Common_OpenReleases"] = "打开 Releases",
+            ["Common_OpenReleases"] = "打开发布页",
             ["Common_Refresh"] = "刷新",
             ["Common_Rename"] = "重命名",
             ["Common_Run"] = "运行",
