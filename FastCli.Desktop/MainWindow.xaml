@@ -777,6 +777,7 @@
                     <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource TertiaryTextBrush}" VerticalAlignment="Center" Margin="0,0,16,0" />
                     <Button Click="OpenTerminalButton_Click"
                             IsEnabled="{Binding CanOpenTerminal}"
+                            FocusVisualStyle="{x:Null}"
                             ToolTip="{Binding OpenTerminalButtonToolTip}"
                             Margin="0,0,8,0"
                             Padding="12,0"
