@@ -461,6 +461,50 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
         </Style>
+        <Style x:Key="EditorCanvasBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="Padding" Value="18" />
+        </Style>
+        <Style x:Key="EditorSectionBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Padding" Value="18" />
+        </Style>
+        <Style x:Key="EditorSectionTitleTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        </Style>
+        <Style x:Key="EditorSectionHintTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
+        </Style>
+        <Style x:Key="EditorBadgeBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SelectedItemBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedItemBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="10,4" />
+        </Style>
+        <Style x:Key="EditorComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+            <Setter Property="Padding" Value="10,7" />
+        </Style>
+        <Style x:Key="EditorTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+            <Setter Property="Padding" Value="10,8" />
+        </Style>
+        <Style x:Key="EditorCodeTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource EditorTextBoxStyle}">
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Background" Value="{DynamicResource TitleBarBackgroundBrush}" />
+        </Style>
         <Style x:Key="ImmersiveCollapsedBadgeStyle" TargetType="Border">
             <Setter Property="Visibility" Value="Visible" />
             <Style.Triggers>
@@ -1120,9 +1164,47 @@
                     <ScrollViewer Grid.Row="1"
                                   Margin="12,10,12,12"
                                   HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel MaxWidth="1280"
-                                    HorizontalAlignment="Stretch">
-                            <Grid Margin="0,0,0,16">
+                        <Border MaxWidth="1280"
+                                HorizontalAlignment="Stretch"
+                                Style="{StaticResource EditorCanvasBorderStyle}">
+                            <StackPanel>
+                            <Border Style="{StaticResource EditorSectionBorderStyle}"
+                                    Background="{DynamicResource TitleBarBackgroundBrush}"
+                                    Margin="0,0,0,18">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel>
+                                        <TextBlock Text="{loc:Loc MainWindow_EditCommand}" FontSize="16" FontWeight="Bold" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Text="{loc:Loc MainWindow_EditorBasics}"
+                                                   Style="{StaticResource EditorSectionHintTextStyle}" />
+                                    </StackPanel>
+
+                                    <Border Grid.Column="1"
+                                            Style="{StaticResource EditorBadgeBorderStyle}"
+                                            VerticalAlignment="Top">
+                                        <TextBlock FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource SecondaryTextBrush}">
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{StaticResource ShellTypeDisplayConverter}">
+                                                    <Binding Path="EditedShellType" />
+                                                    <Binding Path="CurrentLanguage" Source="{x:Static loc:LocalizationManager.Instance}" />
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                        </TextBlock>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource EditorSectionBorderStyle}" Margin="0,0,0,18">
+                            <StackPanel>
+                            <TextBlock Text="{loc:Loc MainWindow_EditorBasics}" Style="{StaticResource EditorSectionTitleTextStyle}" />
+                            <Grid Margin="0,14,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="2*" />
                                     <ColumnDefinition Width="16" />
@@ -1131,21 +1213,26 @@
 
                                 <StackPanel>
                                     <TextBlock Text="{loc:Loc MainWindow_CommandName}" FontWeight="Bold" Margin="0,0,0,6" Foreground="{DynamicResource SecondaryTextBrush}" />
-                                    <TextBox Text="{Binding EditedName, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCommand}" />
+                                    <TextBox Text="{Binding EditedName, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCommand}" Style="{StaticResource EditorTextBoxStyle}" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Text="{loc:Loc MainWindow_Description}" FontWeight="Bold" Margin="0,0,0,6" Foreground="{DynamicResource SecondaryTextBrush}" />
-                                    <TextBox Text="{Binding EditedDescription, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCommand}" />
+                                    <TextBox Text="{Binding EditedDescription, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCommand}" Style="{StaticResource EditorTextBoxStyle}" />
                                 </StackPanel>
                             </Grid>
 
-                            <StackPanel Margin="0,0,0,20">
+                            <StackPanel Margin="0,14,0,0">
                                 <TextBlock Text="{loc:Loc MainWindow_WorkingDirectory}" FontWeight="Bold" Margin="0,0,0,6" Foreground="{DynamicResource SecondaryTextBrush}" />
-                                <TextBox Text="{Binding EditedWorkingDirectory, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCommand}" ToolTip="{loc:Loc MainWindow_WorkingDirectoryTooltip}" />
+                                <TextBox Text="{Binding EditedWorkingDirectory, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditCommand}" ToolTip="{loc:Loc MainWindow_WorkingDirectoryTooltip}" Style="{StaticResource EditorTextBoxStyle}" />
                             </StackPanel>
+                            </StackPanel>
+                            </Border>
 
-                            <Grid Margin="0,0,0,20">
+                            <Border Style="{StaticResource EditorSectionBorderStyle}" Margin="0,0,0,18">
+                            <StackPanel>
+                            <TextBlock Text="{loc:Loc MainWindow_EditorRuntime}" Style="{StaticResource EditorSectionTitleTextStyle}" />
+                            <Grid Margin="0,14,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="16" />
@@ -1160,7 +1247,8 @@
                                               DisplayMemberPath="Label"
                                               SelectedValuePath="Value"
                                               SelectedValue="{Binding EditedShellType, Mode=TwoWay}"
-                                              IsEnabled="{Binding CanEditCommand}" />
+                                              IsEnabled="{Binding CanEditCommand}"
+                                              Style="{StaticResource EditorComboBoxStyle}" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2">
@@ -1169,40 +1257,60 @@
                                               DisplayMemberPath="Label"
                                               SelectedValuePath="Value"
                                               SelectedValue="{Binding EditedRunMode, Mode=TwoWay}"
-                                              IsEnabled="{Binding CanEditCommand}" />
+                                              IsEnabled="{Binding CanEditCommand}"
+                                              Style="{StaticResource EditorComboBoxStyle}" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="4" VerticalAlignment="Bottom" Margin="0,0,0,6">
+                                <Border Grid.Column="4"
+                                        VerticalAlignment="Bottom"
+                                        Padding="12,10"
+                                        Background="{DynamicResource PanelBackgroundBrush}"
+                                        BorderBrush="{DynamicResource PanelBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="12">
                                     <CheckBox Content="{loc:Loc MainWindow_RunAsAdministrator}"
                                               IsChecked="{Binding EditedRunAsAdministrator, Mode=TwoWay}"
                                               IsEnabled="{Binding CanEditCommand}"
                                               Style="{StaticResource ModernToggleSwitch}" />
-                                </StackPanel>
+                                </Border>
                             </Grid>
+                            </StackPanel>
+                            </Border>
 
-                            <StackPanel Margin="0,0,0,20">
+                            <Border Style="{StaticResource EditorSectionBorderStyle}" Margin="0,0,0,18">
+                            <StackPanel>
+                                <TextBlock Text="{loc:Loc MainWindow_EditorScript}" Style="{StaticResource EditorSectionTitleTextStyle}" />
+                                <TextBlock Margin="0,4,0,0" Text="{loc:Loc MainWindow_CommandText}" Style="{StaticResource EditorSectionHintTextStyle}" />
+                            <StackPanel Margin="0,14,0,0">
                                 <TextBlock Text="{loc:Loc MainWindow_CommandText}" FontWeight="Bold" Margin="0,0,0,6" Foreground="{DynamicResource SecondaryTextBrush}" />
                                 <TextBox FontFamily="Consolas"
-                                         Height="150"
+                                         Height="180"
                                          Text="{Binding EditedCommandText, UpdateSourceTrigger=PropertyChanged}"
                                          IsEnabled="{Binding CanEditCommand}"
                                          TextWrapping="Wrap"
                                          AcceptsReturn="True"
-                                         VerticalScrollBarVisibility="Auto" />
+                                         VerticalScrollBarVisibility="Auto"
+                                         Style="{StaticResource EditorCodeTextBoxStyle}" />
                             </StackPanel>
+                            </StackPanel>
+                            </Border>
 
-                            <StackPanel Margin="0,0,0,20">
+                            <Border Style="{StaticResource EditorSectionBorderStyle}" Margin="0,0,0,18">
+                            <StackPanel>
+                                <TextBlock Text="{loc:Loc MainWindow_EditorContext}" Style="{StaticResource EditorSectionTitleTextStyle}" />
+                            <StackPanel Margin="0,14,0,0">
                                 <TextBlock Text="{loc:Loc MainWindow_Arguments}" FontWeight="Bold" Margin="0,0,0,6" Foreground="{DynamicResource SecondaryTextBrush}" />
                                 <TextBox FontFamily="Consolas"
-                                         Height="90"
+                                         Height="110"
                                          Text="{Binding EditedArgumentsText, UpdateSourceTrigger=PropertyChanged}"
                                          IsEnabled="{Binding CanEditCommand}"
                                          TextWrapping="Wrap"
                                          AcceptsReturn="True"
-                                         VerticalScrollBarVisibility="Auto" />
+                                         VerticalScrollBarVisibility="Auto"
+                                         Style="{StaticResource EditorCodeTextBoxStyle}" />
                             </StackPanel>
 
-                            <StackPanel Margin="0,0,0,20">
+                            <StackPanel Margin="0,16,0,0">
                                 <DockPanel Margin="0,0,0,8">
                                     <TextBlock Text="{loc:Loc MainWindow_EnvironmentVariables}" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" />
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -1222,11 +1330,11 @@
                                 </DockPanel>
                                 <TextBlock Text="{loc:Loc MainWindow_EnvironmentVariablesHint}"
                                            Margin="0,0,0,10"
-                                           Foreground="{DynamicResource TertiaryTextBrush}"
+                                           Style="{StaticResource EditorSectionHintTextStyle}"
                                            TextWrapping="Wrap" />
 
-                                <Border BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="1" CornerRadius="10" Background="{DynamicResource ControlBackgroundBrush}" Padding="10,10,6,10">
-                                    <Grid Height="140">
+                                <Border BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="12" Background="{DynamicResource TitleBarBackgroundBrush}" Padding="10,10,6,10">
+                                    <Grid Height="180">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
@@ -1254,7 +1362,7 @@
                                                 <DataTemplate>
                                                     <Border BorderBrush="{DynamicResource ControlBorderBrush}"
                                                             BorderThickness="1"
-                                                            CornerRadius="8"
+                                                            CornerRadius="10"
                                                             Background="{DynamicResource ControlHoverBrush}"
                                                             Padding="8">
                                                         <Grid>
@@ -1265,10 +1373,7 @@
                                                             </Grid.ColumnDefinitions>
                                                             <TextBox Text="{Binding Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                      IsEnabled="{Binding DataContext.CanEditCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                     Background="{DynamicResource PanelBackgroundBrush}"
-                                                                     BorderBrush="{DynamicResource ControlBorderBrush}"
-                                                                     BorderThickness="1"
-                                                                     Padding="8,6"
+                                                                     Style="{StaticResource EditorTextBoxStyle}"
                                                                      ToolTip="{loc:Loc MainWindow_EnvironmentKeyTooltip}" />
                                                             <Border Grid.Column="1"
                                                                     Width="28"
@@ -1286,10 +1391,7 @@
                                                             <TextBox Grid.Column="2"
                                                                      Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                      IsEnabled="{Binding DataContext.CanEditCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                     Background="{DynamicResource PanelBackgroundBrush}"
-                                                                     BorderBrush="{DynamicResource ControlBorderBrush}"
-                                                                     BorderThickness="1"
-                                                                     Padding="8,6"
+                                                                     Style="{StaticResource EditorTextBoxStyle}"
                                                                      ToolTip="{loc:Loc MainWindow_EnvironmentValueTooltip}" />
                                                         </Grid>
                                                     </Border>
@@ -1299,35 +1401,49 @@
                                     </Grid>
                                 </Border>
                             </StackPanel>
-
-                            <StackPanel Margin="0,0,0,16">
-                                <TextBlock Text="{loc:Loc MainWindow_UserReadablePreview}" FontWeight="Bold" Margin="0,0,0,6" Foreground="{DynamicResource SecondaryTextBrush}" />
-                                <TextBox FontFamily="Consolas"
-                                         Height="90"
-                                         IsReadOnly="True"
-                                         Text="{Binding CommandPreview, Mode=OneWay}"
-                                         TextWrapping="Wrap"
-                                         AcceptsReturn="True"
-                                         VerticalScrollBarVisibility="Auto"
-                                         Background="{DynamicResource ControlBackgroundBrush}"
-                                         Foreground="{DynamicResource TertiaryTextBrush}"
-                                         BorderBrush="{DynamicResource ControlBorderBrush}" />
                             </StackPanel>
+                            </Border>
 
-                            <StackPanel Margin="0,0,0,0">
-                                <TextBlock Text="{loc:Loc MainWindow_ActualExecutionCommand}" FontWeight="Bold" Margin="0,0,0,6" Foreground="{DynamicResource SecondaryTextBrush}" />
-                                <TextBox FontFamily="Consolas"
-                                         Height="100"
-                                         IsReadOnly="True"
-                                         Text="{Binding ActualExecutionCommand, Mode=OneWay}"
-                                         TextWrapping="Wrap"
-                                         AcceptsReturn="True"
-                                         VerticalScrollBarVisibility="Auto"
-                                         Background="{DynamicResource ControlBackgroundBrush}"
-                                         Foreground="{DynamicResource TertiaryTextBrush}"
-                                         BorderBrush="{DynamicResource ControlBorderBrush}" />
-                            </StackPanel>
+                            <Border Style="{StaticResource EditorSectionBorderStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="{loc:Loc MainWindow_EditorPreviewSection}" Style="{StaticResource EditorSectionTitleTextStyle}" />
+                                    <Grid Margin="0,14,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="18" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel>
+                                            <TextBlock Text="{loc:Loc MainWindow_UserReadablePreview}" FontWeight="Bold" Margin="0,0,0,6" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                            <TextBox FontFamily="Consolas"
+                                                     Height="120"
+                                                     IsReadOnly="True"
+                                                     Text="{Binding CommandPreview, Mode=OneWay}"
+                                                     TextWrapping="Wrap"
+                                                     AcceptsReturn="True"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     Foreground="{DynamicResource TertiaryTextBrush}"
+                                                     Style="{StaticResource EditorCodeTextBoxStyle}" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="{loc:Loc MainWindow_ActualExecutionCommand}" FontWeight="Bold" Margin="0,0,0,6" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                            <TextBox FontFamily="Consolas"
+                                                     Height="120"
+                                                     IsReadOnly="True"
+                                                     Text="{Binding ActualExecutionCommand, Mode=OneWay}"
+                                                     TextWrapping="Wrap"
+                                                     AcceptsReturn="True"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     Foreground="{DynamicResource TertiaryTextBrush}"
+                                                     Style="{StaticResource EditorCodeTextBoxStyle}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
+                        </Border>
                     </ScrollViewer>
                 </Grid>
                 
