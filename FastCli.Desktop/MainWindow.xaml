@@ -1131,7 +1131,8 @@
                 </Grid.RowDefinitions>
                 
                 <!-- Editor -->
-                <Grid Grid.Row="0">
+                <Grid Grid.Row="0"
+                      Background="{DynamicResource TitleBarBackgroundBrush}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
@@ -1162,44 +1163,11 @@
                     </Border>
 
                     <ScrollViewer Grid.Row="1"
+                                  Background="{DynamicResource TitleBarBackgroundBrush}"
                                   Margin="12,10,12,12"
                                   HorizontalScrollBarVisibility="Disabled">
-                        <Border MaxWidth="1280"
-                                HorizontalAlignment="Stretch"
-                                Style="{StaticResource EditorCanvasBorderStyle}">
-                            <StackPanel>
-                            <Border Style="{StaticResource EditorSectionBorderStyle}"
-                                    Background="{DynamicResource TitleBarBackgroundBrush}"
-                                    Margin="0,0,0,18">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel>
-                                        <TextBlock Text="{loc:Loc MainWindow_EditCommand}" FontSize="16" FontWeight="Bold" />
-                                        <TextBlock Margin="0,4,0,0"
-                                                   Text="{loc:Loc MainWindow_EditorBasics}"
-                                                   Style="{StaticResource EditorSectionHintTextStyle}" />
-                                    </StackPanel>
-
-                                    <Border Grid.Column="1"
-                                            Style="{StaticResource EditorBadgeBorderStyle}"
-                                            VerticalAlignment="Top">
-                                        <TextBlock FontSize="11"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource SecondaryTextBrush}">
-                                            <TextBlock.Text>
-                                                <MultiBinding Converter="{StaticResource ShellTypeDisplayConverter}">
-                                                    <Binding Path="EditedShellType" />
-                                                    <Binding Path="CurrentLanguage" Source="{x:Static loc:LocalizationManager.Instance}" />
-                                                </MultiBinding>
-                                            </TextBlock.Text>
-                                        </TextBlock>
-                                    </Border>
-                                </Grid>
-                            </Border>
+                        <StackPanel MaxWidth="1280"
+                                    HorizontalAlignment="Stretch">
 
                             <Border Style="{StaticResource EditorSectionBorderStyle}" Margin="0,0,0,18">
                             <StackPanel>
@@ -1443,7 +1411,6 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
-                        </Border>
                     </ScrollViewer>
                 </Grid>
                 
