@@ -24,7 +24,7 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <AssemblyName>FastCli</AssemblyName>
     <ApplicationIcon>..\assets\FastCli.ico</ApplicationIcon>
-    <Version>1.0.6</Version>
+    <Version>1.0.7</Version>
     <VersionWithRevision>$(Version).0</VersionWithRevision>
     <AssemblyVersion>$(VersionWithRevision)</AssemblyVersion>
     <FileVersion>$(VersionWithRevision)</FileVersion>
