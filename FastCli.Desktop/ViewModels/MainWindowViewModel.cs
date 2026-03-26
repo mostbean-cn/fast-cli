@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Threading;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
+using FastCli.Application.Utilities;
 using FastCli.Desktop.Localization;
 using FastCli.Desktop.Mvvm;
 using FastCli.Desktop.Services;
@@ -14,14 +15,6 @@ namespace FastCli.Desktop.ViewModels;
 
 public sealed class MainWindowViewModel : ObservableObject
 {
-    private static readonly IReadOnlyList<OptionItem<ShellType>> ShellTypeOptions =
-    [
-        new() { Value = ShellType.Cmd, Label = string.Empty },
-        new() { Value = ShellType.PowerShell, Label = string.Empty },
-        new() { Value = ShellType.Pwsh, Label = string.Empty },
-        new() { Value = ShellType.Direct, Label = string.Empty }
-    ];
-
     private static readonly IReadOnlyList<OptionItem<CommandRunMode>> RunModeOptions =
     [
         new() { Value = CommandRunMode.Embedded, Label = string.Empty },
@@ -31,6 +24,9 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly IFastCliAppService _appService;
     private readonly LocalizationManager _localization;
     private readonly SelectionStateStore _selectionStateStore;
+    private readonly IReadOnlyList<ShellType> _installedCommandShellTypes;
+    private readonly ObservableCollection<OptionItem<ShellType>> _shellTypeOptions;
+    private readonly ObservableCollection<OptionItem<ShellType>> _terminalShellTypeOptions;
     private readonly List<TerminalSessionItem> _terminalSessions = [];
     private Dictionary<Guid, IReadOnlyList<CommandProfile>> _commandsByGroup = new();
     private TerminalSessionItem? _activeTerminalSession;
@@ -75,11 +71,20 @@ public sealed class MainWindowViewModel : ObservableObject
     private string _currentLogText = string.Empty;
     private bool _isExecutionRunning;
 
-    public MainWindowViewModel(IFastCliAppService appService, SelectionStateStore selectionStateStore, LocalizationManager localization)
+    public MainWindowViewModel(
+        IFastCliAppService appService,
+        SelectionStateStore selectionStateStore,
+        LocalizationManager localization,
+        IReadOnlyList<ShellType>? availableCommandShellTypes = null,
+        IReadOnlyList<ShellType>? availableTerminalShellTypes = null)
     {
         _appService = appService;
         _selectionStateStore = selectionStateStore;
         _localization = localization;
+        _installedCommandShellTypes = [.. (availableCommandShellTypes ?? ShellSupportDetector.GetAvailableCommandShellTypes())];
+        _shellTypeOptions = BuildShellTypeOptions(_installedCommandShellTypes);
+        _terminalShellTypeOptions = BuildShellTypeOptions(availableTerminalShellTypes ?? ShellSupportDetector.GetAvailableTerminalShellTypes());
+        _editedShellType = GetDefaultCommandShellType();
         UpdateLocalizedOptionLabels();
         _localization.LanguageChanged += (_, _) => OnLanguageChanged();
         SetStatusMessage("MainWindow_StatusReady");
@@ -100,11 +105,11 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public ObservableCollection<ExecutionRecord> ExecutionHistory { get; } = new();
 
-    public IReadOnlyList<OptionItem<ShellType>> AvailableShellTypes => ShellTypeOptions;
+    public IReadOnlyList<OptionItem<ShellType>> AvailableShellTypes => _shellTypeOptions;
 
     public IReadOnlyList<OptionItem<CommandRunMode>> AvailableRunModes => RunModeOptions;
 
-    public IReadOnlyList<OptionItem<ShellType>> AvailableTerminalShellTypes => TerminalShellTypeOptions;
+    public IReadOnlyList<OptionItem<ShellType>> AvailableTerminalShellTypes => _terminalShellTypeOptions;
 
     public CommandGroup? SelectedGroup
     {
@@ -180,6 +185,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             if (SetProperty(ref _editedShellType, value))
             {
+                RefreshEditorShellOptions();
                 RefreshPreviewSafe();
             }
         }
@@ -391,7 +397,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public bool CanStopCommand => _activeTerminalSession?.IsRunning == true;
 
-    public bool CanOpenTerminal => true;
+    public bool CanOpenTerminal => _terminalShellTypeOptions.Count > 0;
 
     public bool CanToggleTerminalMaximize => IsTerminalPanelVisible;
 
@@ -528,13 +534,6 @@ public sealed class MainWindowViewModel : ObservableObject
         IsImmersiveTerminalMode
             ? "MainWindow_TerminalImmersiveExitTooltip"
             : "MainWindow_TerminalImmersiveEnterTooltip");
-
-    private static readonly IReadOnlyList<OptionItem<ShellType>> TerminalShellTypeOptions =
-    [
-        new() { Value = ShellType.Cmd, Label = string.Empty },
-        new() { Value = ShellType.PowerShell, Label = string.Empty },
-        new() { Value = ShellType.Pwsh, Label = string.Empty }
-    ];
 
     public async Task SendTerminalInputAsync(string text)
     {
@@ -999,7 +998,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 EditedName = string.Empty;
                 EditedDescription = string.Empty;
                 EditedWorkingDirectory = string.Empty;
-                EditedShellType = ShellType.Cmd;
+                EditedShellType = GetDefaultCommandShellType();
                 EditedRunMode = CommandRunMode.Embedded;
                 EditedCommandText = string.Empty;
                 EditedArgumentsText = string.Empty;
@@ -1257,23 +1256,77 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private void UpdateLocalizedOptionLabels()
     {
-        ShellTypeOptions[0].Label = _localization.Get("Shell_CmdOption");
-        ShellTypeOptions[1].Label = _localization.Get("Shell_PowerShellOption");
-        ShellTypeOptions[2].Label = _localization.Get("Shell_PwshOption");
-        ShellTypeOptions[3].Label = _localization.Get("Shell_DirectOption");
+        foreach (var item in _shellTypeOptions)
+        {
+            item.Label = BuildCommandShellOptionLabel(item.Value);
+            item.Description = null;
+            item.Meta = null;
+        }
 
-        TerminalShellTypeOptions[0].Label = _localization.Get("Shell_CmdDisplay");
-        TerminalShellTypeOptions[0].Description = _localization.Get("Shell_CmdDescription");
-        TerminalShellTypeOptions[0].Meta = "cmd.exe";
-        TerminalShellTypeOptions[1].Label = _localization.Get("Shell_PowerShellDisplay");
-        TerminalShellTypeOptions[1].Description = _localization.Get("Shell_PowerShellDescription");
-        TerminalShellTypeOptions[1].Meta = "powershell.exe";
-        TerminalShellTypeOptions[2].Label = _localization.Get("Shell_PwshDisplay");
-        TerminalShellTypeOptions[2].Description = _localization.Get("Shell_PwshDescription");
-        TerminalShellTypeOptions[2].Meta = "pwsh.exe";
+        foreach (var item in _terminalShellTypeOptions)
+        {
+            item.Label = GetShellDisplayLabel(item.Value);
+            item.Description = GetTerminalShellDescription(item.Value);
+            item.Meta = ShellSupportDetector.GetExecutableName(item.Value);
+        }
 
         RunModeOptions[0].Label = _localization.Get("RunMode_Embedded");
         RunModeOptions[1].Label = _localization.Get("RunMode_ExternalTerminal");
+    }
+
+    private void RefreshEditorShellOptions()
+    {
+        var visibleShellTypes = new List<ShellType>(_installedCommandShellTypes);
+        if (!visibleShellTypes.Contains(EditedShellType))
+        {
+            visibleShellTypes.Add(EditedShellType);
+        }
+
+        var rebuiltOptions = BuildShellTypeOptions(visibleShellTypes);
+        ReplaceCollection(_shellTypeOptions, rebuiltOptions);
+        UpdateLocalizedOptionLabels();
+    }
+
+    private ShellType GetDefaultCommandShellType()
+    {
+        return _installedCommandShellTypes.FirstOrDefault(ShellType.Direct);
+    }
+
+    private ObservableCollection<OptionItem<ShellType>> BuildShellTypeOptions(IEnumerable<ShellType> shellTypes)
+    {
+        return new ObservableCollection<OptionItem<ShellType>>(
+            shellTypes.Select(shellType => new OptionItem<ShellType>
+            {
+                Value = shellType,
+                Label = string.Empty
+            }));
+    }
+
+    private string BuildCommandShellOptionLabel(ShellType shellType)
+    {
+        var baseLabel = shellType switch
+        {
+            ShellType.Cmd => _localization.Get("Shell_CmdOption"),
+            ShellType.PowerShell => _localization.Get("Shell_PowerShellOption"),
+            ShellType.Pwsh => _localization.Get("Shell_PwshOption"),
+            ShellType.Direct => _localization.Get("Shell_DirectOption"),
+            _ => shellType.ToString()
+        };
+
+        return _installedCommandShellTypes.Contains(shellType)
+            ? baseLabel
+            : _localization.Format("Shell_UnavailableOption", baseLabel);
+    }
+
+    private string GetTerminalShellDescription(ShellType shellType)
+    {
+        return shellType switch
+        {
+            ShellType.Cmd => _localization.Get("Shell_CmdDescription"),
+            ShellType.PowerShell => _localization.Get("Shell_PowerShellDescription"),
+            ShellType.Pwsh => _localization.Get("Shell_PwshDescription"),
+            _ => string.Empty
+        };
     }
 
     private void SetStatusMessage(string key, params object?[] args)

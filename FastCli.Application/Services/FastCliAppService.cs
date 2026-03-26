@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
+using FastCli.Application.Utilities;
 using FastCli.Domain.Enums;
 using FastCli.Domain.Models;
 
@@ -90,7 +91,7 @@ public sealed class FastCliAppService : IFastCliAppService
             GroupId = groupId,
             Name = RequireName(name, _localizer.Get("Service_CommandNameRequired")),
             Description = string.Empty,
-            ShellType = ShellType.Cmd,
+            ShellType = ShellSupportDetector.GetPreferredCommandShellType(),
             RunMode = CommandRunMode.Embedded,
             CommandText = _localizer.Get("MainWindow_DefaultCommandText"),
             Arguments = new List<string>(),

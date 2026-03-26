@@ -3,6 +3,7 @@ using System.Text;
 using System.Globalization;
 using FastCli.Application.Abstractions;
 using FastCli.Application.Models;
+using FastCli.Application.Utilities;
 using FastCli.Domain.Enums;
 
 namespace FastCli.Infrastructure.Execution;
@@ -19,9 +20,9 @@ internal static class ShellCommandFactory
         var workingDirectory = ResolveWorkingDirectory(request.WorkingDirectory);
         var startInfo = request.ShellType switch
         {
-            ShellType.Cmd => new ProcessStartInfo("cmd.exe", BuildEmbeddedCmdArguments(request)),
-            ShellType.PowerShell => new ProcessStartInfo("powershell.exe", BuildEmbeddedPowerShellArguments(request)),
-            ShellType.Pwsh => new ProcessStartInfo("pwsh.exe", BuildEmbeddedPowerShellArguments(request)),
+            ShellType.Cmd => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer), BuildEmbeddedCmdArguments(request)),
+            ShellType.PowerShell => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer), BuildEmbeddedPowerShellArguments(request)),
+            ShellType.Pwsh => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer), BuildEmbeddedPowerShellArguments(request)),
             ShellType.Direct => new ProcessStartInfo(request.CommandText, JoinArguments(request.Arguments)),
             _ => throw new InvalidOperationException(localizer.Get("Service_UnsupportedShellType"))
         };
@@ -42,10 +43,10 @@ internal static class ShellCommandFactory
         var workingDirectory = ResolveWorkingDirectory(request.WorkingDirectory);
         var startInfo = request.ShellType switch
         {
-            ShellType.Cmd => new ProcessStartInfo("cmd.exe", $"/K {BuildCommandPayload(request)}"),
-            ShellType.PowerShell => new ProcessStartInfo("powershell.exe", BuildExternalPowerShellArguments(request)),
-            ShellType.Pwsh => new ProcessStartInfo("pwsh.exe", BuildExternalPowerShellArguments(request)),
-            ShellType.Direct => new ProcessStartInfo("cmd.exe", $"/K {BuildCommandPayload(request)}"),
+            ShellType.Cmd => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer), $"/K {BuildCommandPayload(request)}"),
+            ShellType.PowerShell => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer), BuildExternalPowerShellArguments(request)),
+            ShellType.Pwsh => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer), BuildExternalPowerShellArguments(request)),
+            ShellType.Direct => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(ShellType.Cmd, localizer), $"/K {BuildCommandPayload(request)}"),
             _ => throw new InvalidOperationException(localizer.Get("Service_UnsupportedShellType"))
         };
 
@@ -192,18 +193,6 @@ if ($PSVersionTable.PSVersion.Major -ge 7) { $PSStyle.OutputRendering = 'PlainTe
         return workingDirectory;
     }
 
-    internal static string ResolveShellPath(ShellType shellType)
-    {
-        return shellType switch
-        {
-            ShellType.Cmd => "cmd.exe",
-            ShellType.PowerShell => "powershell.exe",
-            ShellType.Pwsh => "pwsh.exe",
-            ShellType.Direct => string.Empty,
-            _ => throw new InvalidOperationException($"Unsupported shell type: {shellType}")
-        };
-    }
-
     internal static string[] BuildConPtyArguments(CommandExecutionRequest request)
     {
         return request.ShellType switch
@@ -221,4 +210,5 @@ if ($PSVersionTable.PSVersion.Major -ge 7) { $PSStyle.OutputRendering = 'PlainTe
             _ => []
         };
     }
+
 }

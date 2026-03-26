@@ -216,7 +216,9 @@ public sealed class ConPtyCommandExecutor : ICommandExecutor
 
     private PtyOptions BuildPtyOptions(CommandExecutionRequest request)
     {
-        var shellPath = ShellCommandFactory.ResolveShellPath(request.ShellType);
+        var shellPath = request.ShellType == ShellType.Direct
+            ? string.Empty
+            : ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, _localizer);
         var workingDir = ShellCommandFactory.ResolveWorkingDirectory(request.WorkingDirectory);
 
         if (request.ShellType == ShellType.Direct)

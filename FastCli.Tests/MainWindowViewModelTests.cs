@@ -14,7 +14,10 @@ public sealed class MainWindowViewModelTests
     [Fact]
     public void Constructor_InitializesTerminalUiAsHiddenAndTerminalOptionsWithoutDirect()
     {
-        var viewModel = CreateViewModel(new TestAppService());
+        var viewModel = CreateViewModel(
+            new TestAppService(),
+            availableCommandShellTypes: [ShellType.Cmd, ShellType.PowerShell, ShellType.Pwsh, ShellType.Direct],
+            availableTerminalShellTypes: [ShellType.Cmd, ShellType.PowerShell, ShellType.Pwsh]);
 
         Assert.False(viewModel.IsTerminalPanelVisible);
         Assert.False(viewModel.IsTerminalMaximized);
@@ -116,11 +119,19 @@ public sealed class MainWindowViewModelTests
         Assert.Equal("claude-session> ", viewModel.CurrentTerminalRawText);
     }
 
-    private static MainWindowViewModel CreateViewModel(IFastCliAppService appService)
+    private static MainWindowViewModel CreateViewModel(
+        IFastCliAppService appService,
+        IReadOnlyList<ShellType>? availableCommandShellTypes = null,
+        IReadOnlyList<ShellType>? availableTerminalShellTypes = null)
     {
         LocalizationManager.Instance.Initialize();
         var path = Path.Combine(Path.GetTempPath(), $"fastcli-selection-{Guid.NewGuid():N}.json");
-        return new MainWindowViewModel(appService, new SelectionStateStore(path), LocalizationManager.Instance);
+        return new MainWindowViewModel(
+            appService,
+            new SelectionStateStore(path),
+            LocalizationManager.Instance,
+            availableCommandShellTypes,
+            availableTerminalShellTypes);
     }
 
     private sealed class TestAppService : IFastCliAppService

@@ -150,6 +150,7 @@ internal static class LocalizationCatalog
             ["Shell_CmdOption"] = "命令提示符（cmd）",
             ["Shell_DirectDisplay"] = "直接启动",
             ["Shell_DirectOption"] = "直接启动程序",
+            ["Shell_UnavailableOption"] = "{0}（未检测到）",
             ["Shell_PowerShellDisplay"] = "Windows PowerShell",
             ["Shell_PowerShellDescription"] = "适合现有 PowerShell 脚本和 Windows 自动化任务。",
             ["Shell_PowerShellOption"] = "Windows PowerShell",
@@ -193,6 +194,7 @@ internal static class LocalizationCatalog
             ["Service_TargetGroupNotFound"] = "未找到目标分组。",
             ["Service_TargetGroupMissing"] = "目标分组不存在。",
             ["Service_CommandStartFailed"] = "命令启动失败。",
+            ["Service_ShellExecutableNotFound"] = "未检测到 Shell 可执行文件：{0}",
             ["Service_UnsupportedShellType"] = "不支持的 Shell 类型。",
             ["Service_WorkingDirectoryNotFound"] = "工作目录不存在。"
         });
@@ -343,6 +345,7 @@ internal static class LocalizationCatalog
             ["Shell_CmdOption"] = "Command Prompt (cmd)",
             ["Shell_DirectDisplay"] = "Direct Launch",
             ["Shell_DirectOption"] = "Launch executable directly",
+            ["Shell_UnavailableOption"] = "{0} (not detected)",
             ["Shell_PowerShellDisplay"] = "Windows PowerShell",
             ["Shell_PowerShellDescription"] = "Best for existing PowerShell scripts and Windows automation tasks.",
             ["Shell_PowerShellOption"] = "Windows PowerShell",
@@ -386,6 +389,7 @@ internal static class LocalizationCatalog
             ["Service_TargetGroupNotFound"] = "Target group was not found.",
             ["Service_TargetGroupMissing"] = "The target group does not exist.",
             ["Service_CommandStartFailed"] = "Failed to start the command.",
+            ["Service_ShellExecutableNotFound"] = "Shell executable was not found: {0}",
             ["Service_UnsupportedShellType"] = "Unsupported shell type.",
             ["Service_WorkingDirectoryNotFound"] = "The working directory does not exist."
         });
