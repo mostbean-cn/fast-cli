@@ -25,7 +25,19 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
         Action<CommandOutputLine> onOutput,
         CancellationToken cancellationToken = default)
     {
-        var startInfo = ShellCommandFactory.CreateEmbeddedStartInfo(request, _localizer);
+        var temporaryCmdScriptPath = ShellCommandFactory.CreateTemporaryCmdScriptIfNeeded(request);
+        ProcessStartInfo startInfo;
+
+        try
+        {
+            startInfo = ShellCommandFactory.CreateEmbeddedStartInfo(request, _localizer, temporaryCmdScriptPath);
+        }
+        catch
+        {
+            ShellCommandFactory.TryDeleteTemporaryScript(temporaryCmdScriptPath);
+            throw;
+        }
+
         startInfo.RedirectStandardInput = true;
         startInfo.StandardInputEncoding = System.Text.Encoding.UTF8;
 
@@ -38,9 +50,18 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
         var completionSource = new TaskCompletionSource<CommandCompletionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var canceled = 0;
 
-        if (!process.Start())
+        try
         {
-            throw new InvalidOperationException(_localizer.Get("Service_CommandStartFailed"));
+            if (!process.Start())
+            {
+                ShellCommandFactory.TryDeleteTemporaryScript(temporaryCmdScriptPath);
+                throw new InvalidOperationException(_localizer.Get("Service_CommandStartFailed"));
+            }
+        }
+        catch
+        {
+            ShellCommandFactory.TryDeleteTemporaryScript(temporaryCmdScriptPath);
+            throw;
         }
 
         var stdoutTask = PumpReaderAsync(process.StandardOutput, isError: false, onOutput);
@@ -68,6 +89,7 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
                 finally
                 {
                     registration.Dispose();
+                    ShellCommandFactory.TryDeleteTemporaryScript(temporaryCmdScriptPath);
                     process.Dispose();
                 }
             },
@@ -105,11 +127,34 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var startInfo = ShellCommandFactory.CreateExternalStartInfo(request, _localizer);
-        var process = Process.Start(startInfo);
+        var temporaryCmdScriptPath = ShellCommandFactory.CreateTemporaryCmdScriptIfNeeded(request);
+        ProcessStartInfo startInfo;
+
+        try
+        {
+            startInfo = ShellCommandFactory.CreateExternalStartInfo(request, _localizer, temporaryCmdScriptPath);
+        }
+        catch
+        {
+            ShellCommandFactory.TryDeleteTemporaryScript(temporaryCmdScriptPath);
+            throw;
+        }
+
+        Process? process;
+
+        try
+        {
+            process = Process.Start(startInfo);
+        }
+        catch
+        {
+            ShellCommandFactory.TryDeleteTemporaryScript(temporaryCmdScriptPath);
+            throw;
+        }
 
         if (process is null)
         {
+            ShellCommandFactory.TryDeleteTemporaryScript(temporaryCmdScriptPath);
             throw new InvalidOperationException(_localizer.Get("Service_ExternalTerminalStartFailed"));
         }
 

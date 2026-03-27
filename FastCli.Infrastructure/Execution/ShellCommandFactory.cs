@@ -10,7 +10,10 @@ namespace FastCli.Infrastructure.Execution;
 
 internal static class ShellCommandFactory
 {
-    public static ProcessStartInfo CreateEmbeddedStartInfo(CommandExecutionRequest request, IAppLocalizer localizer)
+    public static ProcessStartInfo CreateEmbeddedStartInfo(
+        CommandExecutionRequest request,
+        IAppLocalizer localizer,
+        string? temporaryCmdScriptPath = null)
     {
         if (request.RunAsAdministrator)
         {
@@ -20,7 +23,9 @@ internal static class ShellCommandFactory
         var workingDirectory = ResolveWorkingDirectory(request.WorkingDirectory);
         var startInfo = request.ShellType switch
         {
-            ShellType.Cmd => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer), BuildEmbeddedCmdArguments(request)),
+            ShellType.Cmd => new ProcessStartInfo(
+                ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer),
+                BuildEmbeddedCmdArguments(request, temporaryCmdScriptPath)),
             ShellType.PowerShell => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer), BuildEmbeddedPowerShellArguments(request)),
             ShellType.Pwsh => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer), BuildEmbeddedPowerShellArguments(request)),
             ShellType.Direct => new ProcessStartInfo(request.CommandText, JoinArguments(request.Arguments)),
@@ -38,12 +43,17 @@ internal static class ShellCommandFactory
         return startInfo;
     }
 
-    public static ProcessStartInfo CreateExternalStartInfo(CommandExecutionRequest request, IAppLocalizer localizer)
+    public static ProcessStartInfo CreateExternalStartInfo(
+        CommandExecutionRequest request,
+        IAppLocalizer localizer,
+        string? temporaryCmdScriptPath = null)
     {
         var workingDirectory = ResolveWorkingDirectory(request.WorkingDirectory);
         var startInfo = request.ShellType switch
         {
-            ShellType.Cmd => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer), $"/K {BuildCommandPayload(request)}"),
+            ShellType.Cmd => new ProcessStartInfo(
+                ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer),
+                BuildExternalCmdArguments(request, temporaryCmdScriptPath)),
             ShellType.PowerShell => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer), BuildExternalPowerShellArguments(request)),
             ShellType.Pwsh => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(request.ShellType, localizer), BuildExternalPowerShellArguments(request)),
             ShellType.Direct => new ProcessStartInfo(ShellSupportDetector.ResolveShellPathOrThrow(ShellType.Cmd, localizer), $"/K {BuildCommandPayload(request)}"),
@@ -130,12 +140,52 @@ internal static class ShellCommandFactory
         };
     }
 
-    private static string BuildEmbeddedCmdArguments(CommandExecutionRequest request)
+    internal static string? CreateTemporaryCmdScriptIfNeeded(CommandExecutionRequest request)
     {
-        var payload = BuildCommandPayload(request);
+        if (request.ShellType != ShellType.Cmd || !LooksLikeMultiLineScript(request.CommandText))
+        {
+            return null;
+        }
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), "FastCli", "scripts");
+        Directory.CreateDirectory(tempRoot);
+
+        var scriptPath = Path.Combine(tempRoot, $"fastcli-{request.ExecutionId:N}.cmd");
+        var scriptContent = request.CommandText.Replace("\r\n", "\n").Replace("\n", "\r\n");
+        File.WriteAllText(scriptPath, scriptContent, new UTF8Encoding(false));
+        return scriptPath;
+    }
+
+    internal static void TryDeleteTemporaryScript(string? scriptPath)
+    {
+        if (string.IsNullOrWhiteSpace(scriptPath) || !File.Exists(scriptPath))
+        {
+            return;
+        }
+
+        try
+        {
+            File.Delete(scriptPath);
+        }
+        catch
+        {
+        }
+    }
+
+    private static string BuildEmbeddedCmdArguments(CommandExecutionRequest request, string? temporaryCmdScriptPath = null)
+    {
+        var payload = BuildCmdPayload(request, temporaryCmdScriptPath);
         return string.IsNullOrWhiteSpace(payload)
-            ? "/Q"
-            : $"/C {payload}";
+            ? "/D /Q"
+            : $"/D /C {payload}";
+    }
+
+    private static string BuildExternalCmdArguments(CommandExecutionRequest request, string? temporaryCmdScriptPath = null)
+    {
+        var payload = BuildCmdPayload(request, temporaryCmdScriptPath);
+        return string.IsNullOrWhiteSpace(payload)
+            ? "/D /K"
+            : $"/D /K {payload}";
     }
 
     private static string BuildEmbeddedPowerShellArguments(CommandExecutionRequest request)
@@ -193,13 +243,13 @@ if ($PSVersionTable.PSVersion.Major -ge 7) { $PSStyle.OutputRendering = 'PlainTe
         return workingDirectory;
     }
 
-    internal static string[] BuildConPtyArguments(CommandExecutionRequest request)
+    internal static string[] BuildConPtyArguments(CommandExecutionRequest request, string? temporaryCmdScriptPath = null)
     {
         return request.ShellType switch
-        {
-            ShellType.Cmd => string.IsNullOrWhiteSpace(BuildCommandPayload(request))
-                ? []
-                : ["/C", BuildCommandPayload(request)],
+        { 
+            ShellType.Cmd => string.IsNullOrWhiteSpace(BuildCmdPayload(request, temporaryCmdScriptPath))
+                ? ["/D"]
+                : ["/D", "/C", BuildCmdPayload(request, temporaryCmdScriptPath)],
             ShellType.PowerShell => string.IsNullOrWhiteSpace(BuildCommandPayload(request))
                 ? ["-NoLogo", "-NoProfile"]
                 : ["-NoLogo", "-NoProfile", "-Command", BuildCommandPayload(request)],
@@ -209,6 +259,42 @@ if ($PSVersionTable.PSVersion.Major -ge 7) { $PSStyle.OutputRendering = 'PlainTe
             ShellType.Direct => [.. request.Arguments],
             _ => []
         };
+    }
+
+    private static string BuildCmdPayload(CommandExecutionRequest request, string? temporaryCmdScriptPath)
+    {
+        if (!string.IsNullOrWhiteSpace(temporaryCmdScriptPath))
+        {
+            return BuildCmdScriptInvocation(temporaryCmdScriptPath, request.Arguments);
+        }
+
+        return BuildCommandPayload(request);
+    }
+
+    private static string BuildCmdScriptInvocation(string scriptPath, IReadOnlyList<string> arguments)
+    {
+        var builder = new StringBuilder();
+        builder.Append("call ");
+        builder.Append(QuoteCmdCommandText(scriptPath));
+
+        if (arguments.Count > 0)
+        {
+            builder.Append(' ');
+            builder.Append(JoinArguments(arguments));
+        }
+
+        return builder.ToString();
+    }
+
+    private static string QuoteCmdCommandText(string value)
+    {
+        return $"\"{value.Replace("\"", "\"\"")}\"";
+    }
+
+    private static bool LooksLikeMultiLineScript(string commandText)
+    {
+        return !string.IsNullOrWhiteSpace(commandText)
+               && (commandText.Contains('\n') || commandText.Contains('\r'));
     }
 
 }

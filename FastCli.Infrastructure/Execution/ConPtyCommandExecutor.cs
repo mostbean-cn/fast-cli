@@ -26,13 +26,33 @@ public sealed class ConPtyCommandExecutor : ICommandExecutor
             throw new InvalidOperationException(_localizer.Get("Service_EmbeddedAdminNotSupported"));
         }
 
-        var options = BuildPtyOptions(request);
-        var connection = await PtyProvider.SpawnAsync(options, cancellationToken);
+        var temporaryCmdScriptPath = ShellCommandFactory.CreateTemporaryCmdScriptIfNeeded(request);
+        IPtyConnection connection;
+
+        try
+        {
+            var options = BuildPtyOptions(request, temporaryCmdScriptPath);
+            connection = await PtyProvider.SpawnAsync(options, cancellationToken);
+        }
+        catch
+        {
+            ShellCommandFactory.TryDeleteTemporaryScript(temporaryCmdScriptPath);
+            throw;
+        }
 
         var completionSource = new TaskCompletionSource<CommandCompletionResult>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var canceled = 0;
         var connectionClosed = 0;
+        var temporaryScriptDeleted = 0;
+
+        void CleanupTemporaryScript()
+        {
+            if (Interlocked.Exchange(ref temporaryScriptDeleted, 1) == 0)
+            {
+                ShellCommandFactory.TryDeleteTemporaryScript(temporaryCmdScriptPath);
+            }
+        }
 
         connection.ProcessExited += (_, e) =>
         {
@@ -65,6 +85,8 @@ public sealed class ConPtyCommandExecutor : ICommandExecutor
                     Summary = _localizer.Format("Service_CommandFailedWithExitCode", e.ExitCode)
                 });
             }
+
+            CleanupTemporaryScript();
         };
 
         _ = Task.Run(
@@ -136,6 +158,8 @@ public sealed class ConPtyCommandExecutor : ICommandExecutor
                 Status = ExecutionStatus.Canceled,
                 Summary = _localizer.Get("Service_CommandWasCanceled")
             });
+
+            CleanupTemporaryScript();
 
             return Task.CompletedTask;
         };
@@ -214,7 +238,7 @@ public sealed class ConPtyCommandExecutor : ICommandExecutor
         }
     }
 
-    private PtyOptions BuildPtyOptions(CommandExecutionRequest request)
+    private PtyOptions BuildPtyOptions(CommandExecutionRequest request, string? temporaryCmdScriptPath)
     {
         var shellPath = request.ShellType == ShellType.Direct
             ? string.Empty
@@ -247,7 +271,7 @@ public sealed class ConPtyCommandExecutor : ICommandExecutor
             Rows = 30,
             Cwd = workingDir,
             App = shellPath,
-            CommandLine = ShellCommandFactory.BuildConPtyArguments(request),
+            CommandLine = ShellCommandFactory.BuildConPtyArguments(request, temporaryCmdScriptPath),
             Environment = environment
         };
     }

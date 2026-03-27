@@ -1218,22 +1218,6 @@
                                               SelectedValue="{Binding EditedShellType, Mode=TwoWay}"
                                               IsEnabled="{Binding CanEditCommand}"
                                               Style="{StaticResource EditorComboBoxStyle}" />
-                                    <TextBlock Text="{Binding EditedShellTypeHint}"
-                                               Margin="0,6,0,0"
-                                               FontSize="11"
-                                               TextWrapping="Wrap"
-                                               Visibility="{Binding HasEditedShellTypeHint, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsEditedShellTypeUnavailable}" Value="True">
-                                                        <Setter Property="Foreground" Value="{DynamicResource DangerButtonBackgroundBrush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2">

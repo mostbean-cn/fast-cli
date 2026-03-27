@@ -62,8 +62,6 @@ public sealed class MainWindowViewModel : ObservableObject
     private string _editedCommandText = string.Empty;
     private string _editedArgumentsText = string.Empty;
     private bool _editedRunAsAdministrator;
-    private string _editedShellTypeHint = string.Empty;
-    private bool _isEditedShellTypeUnavailable;
     private string _commandPreview = string.Empty;
     private string _actualExecutionCommand = string.Empty;
     private string _statusMessage = string.Empty;
@@ -108,26 +106,6 @@ public sealed class MainWindowViewModel : ObservableObject
     public ObservableCollection<ExecutionRecord> ExecutionHistory { get; } = new();
 
     public IReadOnlyList<OptionItem<ShellType>> AvailableShellTypes => _shellTypeOptions;
-
-    public string EditedShellTypeHint
-    {
-        get => _editedShellTypeHint;
-        private set
-        {
-            if (SetProperty(ref _editedShellTypeHint, value))
-            {
-                OnPropertyChanged(nameof(HasEditedShellTypeHint));
-            }
-        }
-    }
-
-    public bool HasEditedShellTypeHint => !string.IsNullOrWhiteSpace(EditedShellTypeHint);
-
-    public bool IsEditedShellTypeUnavailable
-    {
-        get => _isEditedShellTypeUnavailable;
-        private set => SetProperty(ref _isEditedShellTypeUnavailable, value);
-    }
 
     public IReadOnlyList<OptionItem<CommandRunMode>> AvailableRunModes => RunModeOptions;
 
@@ -207,7 +185,6 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             if (SetProperty(ref _editedShellType, value))
             {
-                RefreshEditedShellTypeHint(value);
                 RefreshPreviewSafe();
             }
         }
@@ -1262,7 +1239,6 @@ public sealed class MainWindowViewModel : ObservableObject
     private void OnLanguageChanged()
     {
         UpdateLocalizedOptionLabels();
-        RefreshEditedShellTypeHint();
         RefreshStatusMessage();
         RefreshPreviewSafe();
         RefreshTerminalStatus();
@@ -1309,7 +1285,6 @@ public sealed class MainWindowViewModel : ObservableObject
 
         _shellTypeOptions = BuildShellTypeOptions(visibleShellTypes);
         UpdateLocalizedOptionLabels();
-        RefreshEditedShellTypeHint(selectedShellType);
         OnPropertyChanged(nameof(AvailableShellTypes));
         OnPropertyChanged(nameof(EditedShellType));
     }
@@ -1348,23 +1323,6 @@ public sealed class MainWindowViewModel : ObservableObject
             ShellType.Direct => _localization.Get("Shell_DirectOption"),
             _ => shellType.ToString()
         };
-    }
-
-    private void RefreshEditedShellTypeHint(ShellType? shellType = null)
-    {
-        var currentShellType = shellType ?? EditedShellType;
-
-        if (SelectedCommand is null || _installedCommandShellTypes.Contains(currentShellType))
-        {
-            EditedShellTypeHint = string.Empty;
-            IsEditedShellTypeUnavailable = false;
-            return;
-        }
-
-        EditedShellTypeHint = _localization.Format(
-            "Shell_SelectedUnavailableHint",
-            GetCommandShellBaseLabel(currentShellType));
-        IsEditedShellTypeUnavailable = true;
     }
 
     private string GetTerminalShellDescription(ShellType shellType)
