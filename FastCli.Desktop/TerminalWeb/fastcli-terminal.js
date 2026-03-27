@@ -50,6 +50,99 @@
     }
   };
 
+  const isPrimaryModifierPressed = event => (event.ctrlKey || event.metaKey) && !event.altKey;
+
+  const isCopyShortcut = event =>
+    isPrimaryModifierPressed(event) &&
+    typeof event.key === 'string' &&
+    event.key.toLowerCase() === 'c';
+
+  const isPasteShortcut = event =>
+    isPrimaryModifierPressed(event) &&
+    typeof event.key === 'string' &&
+    event.key.toLowerCase() === 'v';
+
+  const copyUsingExecCommand = text => {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', 'readonly');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    try {
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    } finally {
+      document.body.removeChild(textarea);
+      terminal.focus();
+      hasTerminalFocus = true;
+    }
+  };
+
+  const writeClipboardText = async text => {
+    if (typeof text !== 'string' || text.length === 0) {
+      return false;
+    }
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+      }
+    }
+
+    return copyUsingExecCommand(text);
+  };
+
+  const readClipboardText = async () => {
+    if (!navigator.clipboard || typeof navigator.clipboard.readText !== 'function') {
+      return null;
+    }
+
+    try {
+      return await navigator.clipboard.readText();
+    } catch {
+      return null;
+    }
+  };
+
+  const copySelectionToClipboard = async () => {
+    if (!terminal.hasSelection()) {
+      return false;
+    }
+
+    const selection = terminal.getSelection();
+    const copied = await writeClipboardText(selection);
+
+    if (copied) {
+      terminal.clearSelection();
+      terminal.focus();
+      hasTerminalFocus = true;
+    }
+
+    return copied;
+  };
+
+  const pasteClipboardToTerminal = async () => {
+    const text = await readClipboardText();
+    if (!text) {
+      terminal.focus();
+      hasTerminalFocus = true;
+      return false;
+    }
+
+    terminal.paste(text);
+    terminal.focus();
+    hasTerminalFocus = true;
+    return true;
+  };
+
   const normalizeViewportSyncRequest = rawRequest => {
     if (!rawRequest || typeof rawRequest !== 'object') {
       return { ...defaultViewportSyncRequest };
@@ -204,6 +297,29 @@
 
   terminal.loadAddon(fitAddon);
   terminal.open(root);
+  terminal.attachCustomKeyEventHandler(event => {
+    if (event.type !== 'keydown') {
+      return true;
+    }
+
+    if (isCopyShortcut(event)) {
+      if (!terminal.hasSelection()) {
+        return true;
+      }
+
+      event.preventDefault();
+      void copySelectionToClipboard();
+      return false;
+    }
+
+    if (isPasteShortcut(event)) {
+      event.preventDefault();
+      void pasteClipboardToTerminal();
+      return false;
+    }
+
+    return true;
+  });
   applyThemeVariables(terminal.options.theme);
   terminal.writeln('FastCli terminal ready. Run an embedded command to start an interactive shell.');
   scheduleViewportSync({ reason: 'init', requestFocus: false, preserveBottom: true }, 0);
