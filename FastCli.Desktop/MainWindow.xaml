@@ -1248,11 +1248,28 @@
 
                             <Border Style="{StaticResource EditorSectionBorderStyle}" Margin="0,0,0,18">
                             <StackPanel>
-                                <TextBlock Text="{loc:Loc MainWindow_EditorScript}" Style="{StaticResource EditorSectionTitleTextStyle}" />
-                                <TextBlock Margin="0,4,0,0" Text="{loc:Loc MainWindow_CommandText}" Style="{StaticResource EditorSectionHintTextStyle}" />
+                                <DockPanel LastChildFill="False">
+                                    <TextBlock Text="{loc:Loc MainWindow_EditorScript}"
+                                               Style="{StaticResource EditorSectionTitleTextStyle}"
+                                               VerticalAlignment="Center"
+                                               DockPanel.Dock="Left" />
+                                    <Button Click="LinkExistingScriptButton_Click"
+                                            DockPanel.Dock="Right"
+                                            IsEnabled="{Binding CanEditCommand}"
+                                            Style="{StaticResource SecondaryBorderlessButton}"
+                                            MinHeight="0"
+                                            Padding="4,0"
+                                            ToolTip="{loc:Loc MainWindow_LinkExistingScriptTooltip}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE8B7;" Margin="0,0,4,0" Style="{StaticResource ButtonGlyphTextStyle}" />
+                                            <TextBlock Text="{loc:Loc MainWindow_LinkExistingScript}" Style="{StaticResource ButtonLabelTextStyle}" />
+                                        </StackPanel>
+                                    </Button>
+                                </DockPanel>
                             <StackPanel Margin="0,14,0,0">
                                 <TextBlock Text="{loc:Loc MainWindow_CommandText}" FontWeight="Bold" Margin="0,0,0,6" Foreground="{DynamicResource SecondaryTextBrush}" />
-                                <TextBox FontFamily="Consolas"
+                                <TextBox x:Name="CommandTextEditor"
+                                         FontFamily="Consolas"
                                          Height="180"
                                          Text="{Binding EditedCommandText, UpdateSourceTrigger=PropertyChanged}"
                                          IsEnabled="{Binding CanEditCommand}"

@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.IO;
 using System.ComponentModel;
+using Microsoft.Win32;
 using FastCli.Application.Utilities;
 using FastCli.Desktop.Layout;
 using FastCli.Desktop.Localization;
@@ -229,6 +230,22 @@ public partial class MainWindow : Window
     private async void ClearLogButton_Click(object sender, RoutedEventArgs e)
     {
         await ViewModel.ClearCurrentLogAsync();
+    }
+
+    private void LinkExistingScriptButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ViewModel.CanEditCommand)
+        {
+            return;
+        }
+
+        var selectedFilePath = ShowExistingScriptFileDialog();
+        if (string.IsNullOrWhiteSpace(selectedFilePath))
+        {
+            return;
+        }
+
+        InsertScriptPathIntoCommandEditor(selectedFilePath);
     }
 
     private async void CommandListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -571,6 +588,60 @@ public partial class MainWindow : Window
                && point.Y >= 0
                && point.X <= element.ActualWidth
                && point.Y <= element.ActualHeight;
+    }
+
+    private string? ShowExistingScriptFileDialog()
+    {
+        var localization = LocalizationManager.Instance;
+        var dialog = new OpenFileDialog
+        {
+            Title = localization.Get("MainWindow_ScriptFileDialogTitle"),
+            Filter = localization.Get("MainWindow_ScriptFileDialogFilter"),
+            CheckFileExists = true,
+            Multiselect = false,
+            RestoreDirectory = true
+        };
+
+        return dialog.ShowDialog(this) == true ? dialog.FileName : null;
+    }
+
+    private void InsertScriptPathIntoCommandEditor(string filePath)
+    {
+        if (CommandTextEditor is null)
+        {
+            ViewModel.EditedCommandText = BuildInsertedScriptPath(filePath);
+            return;
+        }
+
+        var insertedText = BuildInsertedScriptPath(filePath);
+        CommandTextEditor.Focus();
+        CommandTextEditor.SelectedText = insertedText;
+        CommandTextEditor.CaretIndex = CommandTextEditor.SelectionStart + CommandTextEditor.SelectionLength;
+        CommandTextEditor.ScrollToLine(CommandTextEditor.GetLineIndexFromCharacterIndex(CommandTextEditor.CaretIndex));
+    }
+
+    private string BuildInsertedScriptPath(string filePath)
+    {
+        var absolutePath = Path.GetFullPath(filePath);
+        return ViewModel.EditedShellType switch
+        {
+            ShellType.Direct => absolutePath,
+            ShellType.PowerShell => BuildPowerShellInvocation(absolutePath),
+            ShellType.Pwsh => BuildPowerShellInvocation(absolutePath),
+            _ => QuoteCommandPathIfNeeded(absolutePath)
+        };
+    }
+
+    private static string BuildPowerShellInvocation(string filePath)
+    {
+        return $"& \"{filePath.Replace("\"", "\"\"")}\"";
+    }
+
+    private static string QuoteCommandPathIfNeeded(string filePath)
+    {
+        return filePath.Contains(' ') || filePath.Contains('"')
+            ? $"\"{filePath.Replace("\"", "\\\"")}\""
+            : filePath;
     }
 
     private static ListBoxItem? FindAncestorListBoxItem(DependencyObject? source)
